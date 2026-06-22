@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 语义化主题 token（CSS 变量驱动 light / dark）── */
+:root {
+  color-scheme: light;     /* 原生控件（input/select/滚动条）跟随主题 */
+  --bg: #EFEAE0;            /* 页面底 */
+  --surface: #FFFFFF;       /* 主卡面 */
+  --surface-2: #F5F0E6;     /* 次级填充/chip */
+  --fg: #2C2C2A;            /* 主文字 */
+  --muted: #5F5E5A;         /* 次文字 */
+  --faint: #888780;         /* 弱文字 */
+  --line: rgba(0, 0, 0, 0.12);
+
+  --accent: #993C1D;        /* 朱砂主色 */
+  --accent-soft: #FAECE7;   /* 朱砂浅底（经典卡/金句） */
+  --accent-ink: #4A1B0C;    /* 朱砂浅底上的文字 */
+
+  --cel: #0F6E56;
+  --cel-soft: #E1F5EE;      /* AI 解读底 */
+  --cel-ink: #04342C;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #1A1613;            /* 暖调深色，护眼非纯黑 */
+  --surface: #232019;
+  --surface-2: #2C2820;
+  --fg: #ECE6DA;
+  --muted: #B6AE9D;
+  --faint: #8C8475;
+  --line: rgba(255, 255, 255, 0.12);
+
+  --accent: #D2724F;        /* 暗色下提亮朱砂以保证对比 */
+  --accent-soft: #3A201A;
+  --accent-ink: #F1C8B7;
+
+  --cel: #5DCAA5;
+  --cel-soft: #15302A;
+  --cel-ink: #9FE0C9;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+}
+* { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
+
+/* 印章式徽标（品牌常量，不随主题变） */
+.seal {
+  font-family: "Songti SC", "STSong", serif;
+  background: #993C1D;
+  color: #FAECE7;
+}
+
+/* 打字省略号动效 */
+@keyframes blink { 0%, 80%, 100% { opacity: 0.2 } 40% { opacity: 1 } }
+.typing-dot { animation: blink 1.2s infinite both; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* 骨架屏微光 */
+@keyframes shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 37%, var(--surface-2) 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
+.hl { color: var(--accent); font-weight: 600; }
+
+/* 礼游戏：结果页淡入 */
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadein { animation: fadein 0.4s ease-out; }
+
+/* 礼游戏：解锁动效（金光闪一下 + 上滑） */
+@keyframes unlock {
+  0% { opacity: 0; transform: translateY(16px) scale(0.96); box-shadow: 0 0 0 0 rgba(245, 196, 49, 0); }
+  40% { box-shadow: 0 0 0 6px rgba(245, 196, 49, 0.35); }
+  100% { opacity: 1; transform: translateY(0) scale(1); box-shadow: 0 0 0 0 rgba(245, 196, 49, 0); }
+}
+.animate-unlock { animation: unlock 0.8s ease-out; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
