@@ -171,6 +171,12 @@ export const getShuProgress = () =>
 export const getShuLeaderboard = (limit = 20) =>
   getJSON<import("./types").ShuLeaderboardResp>(`/api/v1/shu/leaderboard?limit=${limit}`);
 
+// ── 君子之路 · 总览 + 勋章 + 排行 ──────────────────────────────
+export const getJourneyOverview = () =>
+  authJSON<import("./types").JourneyOverviewResp>("/api/v1/journey/overview");
+export const getJourneyLeaderboard = (limit = 20) =>
+  authJSON<import("./types").JourneyLeaderboardResp>(`/api/v1/journey/leaderboard?limit=${limit}`);
+
 // ── 御艺·五御 ──────────────────────────────────────────────────
 export const getYuToday = () =>
   authJSON<import("./types").YuTodayResp>("/api/v1/yu/today");

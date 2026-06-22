@@ -276,6 +276,46 @@ export interface ShuLeaderboardResp {
   items: { rank: number; name: string; learned: number; attempts: number }[];
 }
 
+// ── 君子之路 · 总览 + 勋章 + 排行 ──────────────────────────────
+export interface JourneyArtBrief {
+  key: string;          // li / yue / she / yu / shu / shu2
+  label: string;
+  subtitle: string;
+  color: string;
+  score: number;
+  path: string;         // 跳转链接
+}
+export interface JourneyBadge {
+  key: string;
+  name: string;
+  desc: string;
+  tier: "normal" | "gold" | "treasure";
+  unlocked: boolean;
+}
+export interface JourneyOverviewResp {
+  total_score: number;
+  title: string;
+  min_art: number;
+  max_art: number;
+  arts: JourneyArtBrief[];
+  badges: JourneyBadge[];
+  badges_unlocked: number;
+  badges_total: number;
+}
+export interface JourneyLeaderboardItem {
+  rank: number;
+  user_id: string;
+  name: string;
+  total: number;
+  by_art: Record<string, number>;
+  is_self: boolean;
+}
+export interface JourneyLeaderboardResp {
+  items: JourneyLeaderboardItem[];
+  total_players: number;
+  self: JourneyLeaderboardItem | null;
+}
+
 // ── 御艺·五御 ──────────────────────────────────────────────────
 export interface YuRoadCurve {
   start: number;

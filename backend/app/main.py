@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .db import init_db
-from .routers import auth, cases, chat, cocreate, concepts, content, corpus, embed, feed, gamify, graph, health, institutions, li_game, math as math_router, openapi, reach, she, shu, topics, yu, yue
+from .routers import auth, cases, chat, cocreate, concepts, content, corpus, embed, feed, gamify, graph, health, institutions, journey, li_game, math as math_router, openapi, reach, she, shu, topics, yu, yue
 from .seed import seed_if_empty
 
 
@@ -73,5 +73,6 @@ app.include_router(shu.router)
 app.include_router(yue.router)
 app.include_router(math_router.router)
 app.include_router(yu.router)
+app.include_router(journey.router)
 app.include_router(auth.router)
 app.include_router(gamify.router)
