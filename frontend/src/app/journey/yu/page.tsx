@@ -28,8 +28,8 @@ import type {
 const CANVAS_W = 360;       // 内部画布宽
 const CANVAS_H = 540;       // 内部画布高
 const ROAD_W = 160;         // 道路宽度
-const CAR_LEN = 20;
-const CAR_W = 14;
+const CAR_LEN = 36;
+const CAR_W = 24;
 const MAX_SPEED = 14;       // m/s 上限
 const ACC = 8;              // 加速度 m/s²
 const BRK = 18;             // 刹车减速度 m/s²
@@ -502,56 +502,128 @@ export default function YuJourneyPage() {
         }
       }
 
-      // 6) 车（俯视马车样式）
+      // 6) 车（俯视马车样式 — 大、可转向）
       const carScreenX = CANVAS_W / 2 + car.x * PX_PER_M;
       const carScreenY = CANVAS_H - (car.y - cameraY) * PX_PER_M;
-      // 车阴影
-      ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+
+      // 计算朝向：弯道中车头跟随切线方向
+      let headingAngle = 0;
+      for (const c of curves) {
+        if (car.y >= c.start && car.y <= c.end) {
+          const t = (car.y - c.start) / (c.end - c.start);
+          const len = c.end - c.start;
+          // d(center) / d(worldY) — center 用像素，worldY 用米
+          const dCenter = (c.offset * Math.PI * Math.cos(t * Math.PI)) / len;
+          // 转屏幕坐标：dx 像素 / dy 像素 = dCenter / PX_PER_M
+          headingAngle = Math.atan2(dCenter, PX_PER_M);
+          break;
+        }
+      }
+
+      // 车阴影（不旋转，地面阴影保持水平略偏后）
+      ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
       ctx.beginPath();
-      ctx.ellipse(carScreenX + 2, carScreenY + 14, CAR_W, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(carScreenX + 3, carScreenY + CAR_LEN / 2 - 2, CAR_W / 2 + 4, 4, 0, 0, Math.PI * 2);
       ctx.fill();
-      // 前马（两匹）
+
+      // 以下绘制都用车中心 (0,0) 作原点，前方为 -y
+      ctx.save();
+      ctx.translate(carScreenX, carScreenY);
+      ctx.rotate(headingAngle);
+
+      // 前两匹马（在车头前方约 12 像素处）
+      const horseY = -CAR_LEN / 2 - 14;     // 马身中心 y
       ctx.fillStyle = "#8a6a4a";
-      ctx.fillRect(carScreenX - 7, carScreenY - 22, 4, 8);   // 左马
-      ctx.fillRect(carScreenX + 3, carScreenY - 22, 4, 8);   // 右马
+      ctx.fillRect(-9, horseY, 6, 14);       // 左马身
+      ctx.fillRect(3, horseY, 6, 14);        // 右马身
       ctx.fillStyle = "#5a3a1a";
-      ctx.fillRect(carScreenX - 7, carScreenY - 24, 4, 2);   // 左马头
-      ctx.fillRect(carScreenX + 3, carScreenY - 24, 4, 2);   // 右马头
-      // 缰绳（深棕细线）
-      ctx.strokeStyle = "#3a2a1a";
-      ctx.lineWidth = 1;
+      // 马头（更深色三角形朝前）
       ctx.beginPath();
-      ctx.moveTo(carScreenX - 5, carScreenY - 14);
-      ctx.lineTo(carScreenX - 4, carScreenY - 8);
-      ctx.moveTo(carScreenX + 5, carScreenY - 14);
-      ctx.lineTo(carScreenX + 4, carScreenY - 8);
+      ctx.moveTo(-6, horseY - 4);            // 左马头
+      ctx.lineTo(-9, horseY);
+      ctx.lineTo(-3, horseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(6, horseY - 4);             // 右马头
+      ctx.lineTo(3, horseY);
+      ctx.lineTo(9, horseY);
+      ctx.closePath();
+      ctx.fill();
+      // 马尾鬃（深色小条）
+      ctx.fillStyle = "#3a2818";
+      ctx.fillRect(-6.5, horseY + 14, 1, 3);
+      ctx.fillRect(5.5, horseY + 14, 1, 3);
+
+      // 缰绳（从马屁股拉到车前）
+      ctx.strokeStyle = "#3a2a1a";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-6, horseY + 14);
+      ctx.lineTo(-4, -CAR_LEN / 2);
+      ctx.moveTo(6, horseY + 14);
+      ctx.lineTo(4, -CAR_LEN / 2);
       ctx.stroke();
-      // 车厢（木色矩形）
+
+      // 车厢底（木色，带边框）
       ctx.fillStyle = "#7c5a36";
-      ctx.fillRect(carScreenX - CAR_W / 2, carScreenY - CAR_LEN / 2, CAR_W, CAR_LEN);
-      // 朱红顶棚（覆盖车厢上面 2/3）
-      const topGrad = ctx.createLinearGradient(carScreenX - CAR_W / 2, 0, carScreenX + CAR_W / 2, 0);
+      ctx.fillRect(-CAR_W / 2, -CAR_LEN / 2, CAR_W, CAR_LEN);
+      ctx.strokeStyle = "#3a2818";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-CAR_W / 2, -CAR_LEN / 2, CAR_W, CAR_LEN);
+
+      // 朱红顶棚（覆盖中部 60%，留出前后木色边）
+      const topGrad = ctx.createLinearGradient(-CAR_W / 2, 0, CAR_W / 2, 0);
       topGrad.addColorStop(0, "#7f1d1d");
       topGrad.addColorStop(0.5, "#dc2626");
       topGrad.addColorStop(1, "#7f1d1d");
       ctx.fillStyle = topGrad;
-      ctx.fillRect(carScreenX - CAR_W / 2 + 1, carScreenY - CAR_LEN / 2 + 2, CAR_W - 2, CAR_LEN - 8);
-      // 车轮（左右黑色圆）
+      ctx.fillRect(-CAR_W / 2 + 2, -CAR_LEN / 2 + 5, CAR_W - 4, CAR_LEN - 14);
+      // 顶棚装饰：金线
+      ctx.fillStyle = "#d4a017";
+      ctx.fillRect(-CAR_W / 2 + 2, -CAR_LEN / 2 + 5, CAR_W - 4, 1.5);
+      ctx.fillRect(-CAR_W / 2 + 2, -CAR_LEN / 2 + CAR_LEN - 11, CAR_W - 4, 1.5);
+      // 车窗（小方块）
       ctx.fillStyle = "#1a1a1a";
-      ctx.beginPath();
-      ctx.arc(carScreenX - CAR_W / 2 - 2, carScreenY, 3, 0, Math.PI * 2);
-      ctx.arc(carScreenX + CAR_W / 2 + 2, carScreenY, 3, 0, Math.PI * 2);
-      ctx.fill();
-      // 车轮辐条（小白点）
+      ctx.fillRect(-CAR_W / 2 + 5, -2, CAR_W - 10, 6);
+      ctx.fillStyle = "#fde047";
+      ctx.fillRect(-CAR_W / 2 + 6, -1, CAR_W - 12, 4);
+
+      // 4 个车轮（前后左右各一）
+      const wheelR = 4;
+      ctx.fillStyle = "#1a1a1a";
+      const wheelPositions = [
+        [-CAR_W / 2 - 1, -CAR_LEN / 4],     // 左前
+        [CAR_W / 2 + 1, -CAR_LEN / 4],      // 右前
+        [-CAR_W / 2 - 1, CAR_LEN / 4],      // 左后
+        [CAR_W / 2 + 1, CAR_LEN / 4],       // 右后
+      ];
+      for (const [wx, wy] of wheelPositions) {
+        ctx.beginPath();
+        ctx.arc(wx, wy, wheelR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 车轮辐条（中央灰点）
       ctx.fillStyle = "#9ca3af";
-      ctx.fillRect(carScreenX - CAR_W / 2 - 2, carScreenY - 0.5, 1, 1);
-      ctx.fillRect(carScreenX + CAR_W / 2 + 1, carScreenY - 0.5, 1, 1);
-      // 前部铜铃（金色小点，按节奏闪烁）
+      for (const [wx, wy] of wheelPositions) {
+        ctx.beginPath();
+        ctx.arc(wx, wy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 前部铜铃（金色小球，按节奏闪烁）
       const bellOn = Math.floor(elapsed / 250) % 2 === 0;
       ctx.fillStyle = bellOn ? "#fde047" : "#ca8a04";
       ctx.beginPath();
-      ctx.arc(carScreenX, carScreenY - CAR_LEN / 2 - 1, 2, 0, Math.PI * 2);
+      ctx.arc(0, -CAR_LEN / 2 - 3, 3, 0, Math.PI * 2);
       ctx.fill();
+      // 铃的反光
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(-1, -CAR_LEN / 2 - 4, 1, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
 
       // HUD
       setHud((h) => ({
