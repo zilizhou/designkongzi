@@ -42,6 +42,12 @@ services:
       GRAPH_BACKEND: ${GRAPH_BACKEND:-neo4j}
       CHROMA_PATH: /data/chroma
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # HuggingFace 走本地缓存（不连 huggingface.co，否则启动会卡在拉模型）
+      # bge-m3 模型已在 backend_data volume 的 /data/hf_home 里
+      HF_HUB_OFFLINE: "1"
+      HF_HOME: /data/hf_home
+      SENTENCE_TRANSFORMERS_HOME: /data/hf_home/hub
+      TRANSFORMERS_OFFLINE: "1"
     ports:
       - "8000:8000"
     volumes:
