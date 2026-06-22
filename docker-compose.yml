@@ -11,7 +11,7 @@
 
 services:
   neo4j:
-    image: neo4j:5-community
+    image: docker.m.daocloud.io/library/neo4j:5-community
     container_name: kongzi-neo4j
     ports:
       - "7474:7474"
