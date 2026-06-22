@@ -289,15 +289,65 @@ export default function YuJourneyPage() {
       }
 
       // ─── 渲染 ─────────────────────────────────────────
-      ctx.fillStyle = "#dcdac8";
-      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-      // 视野：以车为屏幕底部 1/3 处
+      const roadLength = roadCfg.length || 600;
       const cameraY = car.y - (CANVAS_H / PX_PER_M) * 0.7;
 
-      // 道路（沿弯道偏移）
-      const drawRoadAt = (worldY: number, screenY: number) => {
-        // 在该 worldY 找弯道中心偏移
+      // 1) 天空 + 远山（背景）— 渐变更柔和
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H * 0.6);
+      skyGrad.addColorStop(0, "#e4dfc5");
+      skyGrad.addColorStop(1, "#d5cfb5");
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      // 远山剪影（深浅两层）
+      ctx.fillStyle = "rgba(140, 152, 145, 0.45)";
+      ctx.beginPath();
+      ctx.moveTo(0, CANVAS_H * 0.32);
+      ctx.lineTo(60, CANVAS_H * 0.18);
+      ctx.lineTo(140, CANVAS_H * 0.28);
+      ctx.lineTo(220, CANVAS_H * 0.16);
+      ctx.lineTo(300, CANVAS_H * 0.26);
+      ctx.lineTo(CANVAS_W, CANVAS_H * 0.20);
+      ctx.lineTo(CANVAS_W, CANVAS_H * 0.42);
+      ctx.lineTo(0, CANVAS_H * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(122, 132, 124, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(0, CANVAS_H * 0.40);
+      ctx.lineTo(80, CANVAS_H * 0.28);
+      ctx.lineTo(180, CANVAS_H * 0.36);
+      ctx.lineTo(280, CANVAS_H * 0.24);
+      ctx.lineTo(CANVAS_W, CANVAS_H * 0.34);
+      ctx.lineTo(CANVAS_W, CANVAS_H * 0.46);
+      ctx.lineTo(0, CANVAS_H * 0.46);
+      ctx.closePath();
+      ctx.fill();
+      // 飘动浮云（按 elapsed 慢漂）
+      const cloudX = ((elapsed / 80) % (CANVAS_W + 100)) - 60;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(cloudX, 40, 28, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cloudX + 200, 70, 22, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 2) 草地（两侧绿色）
+      ctx.fillStyle = "#a8b88e";
+      ctx.fillRect(0, CANVAS_H * 0.42, CANVAS_W, CANVAS_H * 0.58);
+      // 草地小点（伪纹理）
+      ctx.fillStyle = "rgba(122, 142, 102, 0.4)";
+      for (let i = 0; i < 30; i++) {
+        const gx = (i * 37 + (Math.floor(cameraY * 4) % 100)) % CANVAS_W;
+        const gy = CANVAS_H * 0.42 + ((i * 53) % (CANVAS_H * 0.58));
+        ctx.fillRect(gx, gy, 2, 2);
+      }
+
+      // 3) 道路（带中央虚线 + 路缘）— 一次性多边形画
+      const segs: { worldY: number; screenY: number; center: number }[] = [];
+      for (let yp = -8; yp < CANVAS_H + 8; yp += 4) {
+        const worldY = cameraY + (CANVAS_H - yp) / PX_PER_M;
+        if (worldY < -10 || worldY > roadLength + 10) continue;
         let center = 0;
         for (const c of curves) {
           if (worldY >= c.start && worldY <= c.end) {
@@ -306,76 +356,202 @@ export default function YuJourneyPage() {
             break;
           }
         }
-        const left = CANVAS_W / 2 + center - ROAD_W / 2;
-        // 道路填充
-        ctx.fillStyle = "#7a6a55";
-        ctx.fillRect(left, screenY, ROAD_W, 4);
-        // 左右白线
-        ctx.fillStyle = "#f4f1e6";
-        ctx.fillRect(left, screenY, 3, 4);
-        ctx.fillRect(left + ROAD_W - 3, screenY, 3, 4);
-      };
-      // 画道路：从 cameraY 起，间隔 1m 画一段
-      const roadLength = roadCfg.length || 600;
-      for (let yp = 0; yp < CANVAS_H; yp += 4) {
-        const worldY = cameraY + (CANVAS_H - yp) / PX_PER_M;
-        if (worldY < 0 || worldY > roadLength) continue;
-        drawRoadAt(worldY, yp);
+        segs.push({ worldY, screenY: yp, center });
+      }
+      // 道路本体（深棕渐变）
+      for (const s of segs) {
+        const left = CANVAS_W / 2 + s.center - ROAD_W / 2;
+        ctx.fillStyle = "#6b5d4a";
+        ctx.fillRect(left, s.screenY, ROAD_W, 4);
+        // 路面纹理（每 8 米一条浅色横线）
+        if (Math.floor(s.worldY) % 8 === 0) {
+          ctx.fillStyle = "rgba(255, 240, 200, 0.06)";
+          ctx.fillRect(left + 6, s.screenY + 1, ROAD_W - 12, 2);
+        }
+      }
+      // 左右路缘（米色厚边）
+      for (const s of segs) {
+        const left = CANVAS_W / 2 + s.center - ROAD_W / 2;
+        ctx.fillStyle = "#e8e0c8";
+        ctx.fillRect(left - 2, s.screenY, 4, 4);
+        ctx.fillRect(left + ROAD_W - 2, s.screenY, 4, 4);
+      }
+      // 中央虚线（每 16 米一段，长 8 米）
+      for (const s of segs) {
+        const phase = Math.floor(s.worldY) % 16;
+        if (phase < 8) {
+          ctx.fillStyle = "rgba(245, 240, 220, 0.6)";
+          ctx.fillRect(CANVAS_W / 2 + s.center - 1.5, s.screenY, 3, 4);
+        }
       }
 
-      // 节拍坎（横向条）
+      // 4) 节拍坎（彩色弧门）
       for (let i = 0; i < beats.length; i++) {
         const expectedY = ((i + 1) / (beats.length + 1)) * roadLength;
         const screenY = CANVAS_H - (expectedY - cameraY) * PX_PER_M;
-        if (screenY < 0 || screenY > CANVAS_H) continue;
+        if (screenY < -20 || screenY > CANVAS_H + 20) continue;
+        let center = 0;
+        for (const c of curves) {
+          if (expectedY >= c.start && expectedY <= c.end) {
+            const t = (expectedY - c.start) / (c.end - c.start);
+            center = c.offset * Math.sin(t * Math.PI);
+            break;
+          }
+        }
         const passed = i < stateRef.current.nextBeatIdx;
-        const hit = stateRef.current.events.some(
+        const hit = passed && stateRef.current.events.some(
           (e) => e.type === "beat_hit" && Math.abs(e.t / 1000 - beats[i]) < 0.5,
         );
-        ctx.fillStyle = passed ? (hit ? "#10b981" : "#ef4444") : "#facc15";
-        const left = CANVAS_W / 2 - ROAD_W / 2 + 5;
-        ctx.fillRect(left, screenY - 2, ROAD_W - 10, 4);
+        const color = passed ? (hit ? "#10b981" : "#dc2626") : "#fbbf24";
+        // 弧形门（横向半椭圆）
+        const cx = CANVAS_W / 2 + center;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(cx, screenY, ROAD_W / 2 - 6, 10, 0, Math.PI, Math.PI * 2);
+        ctx.stroke();
+        // 命中时加白色光晕
+        if (hit) {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.ellipse(cx, screenY, ROAD_W / 2 - 6, 10, 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        // 节拍编号小字
+        ctx.fillStyle = color;
+        ctx.font = "10px serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`♩${i + 1}`, cx, screenY - 14);
       }
 
-      // 障碍物
+      // 5) 障碍物
       for (let i = 0; i < obstacles.length; i++) {
         const o = obstacles[i];
         const screenY = CANVAS_H - (o.y - cameraY) * PX_PER_M;
         if (screenY < -50 || screenY > CANVAS_H + 50) continue;
-        const cx = CANVAS_W / 2 + (o.x || 0);
+        // 取该 worldY 的车道偏移
+        let center = 0;
+        for (const c of curves) {
+          if (o.y >= c.start && o.y <= c.end) {
+            const t = (o.y - c.start) / (c.end - c.start);
+            center = c.offset * Math.sin(t * Math.PI);
+            break;
+          }
+        }
+        const cx = CANVAS_W / 2 + center + (o.x || 0);
         if (o.type === "junbiao") {
-          ctx.fillStyle = "#b45309";
-          ctx.fillRect(cx - 8, screenY - 24, 16, 24);
-          ctx.fillStyle = "#fff";
-          ctx.font = "10px serif";
+          // 红木柱 + 金色横牌
+          // 阴影
+          ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+          ctx.beginPath();
+          ctx.ellipse(cx, screenY + 4, 14, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // 柱身（红木色 + 渐变）
+          const pillar = ctx.createLinearGradient(cx - 5, 0, cx + 5, 0);
+          pillar.addColorStop(0, "#7c2d12");
+          pillar.addColorStop(0.5, "#b91c1c");
+          pillar.addColorStop(1, "#7c2d12");
+          ctx.fillStyle = pillar;
+          ctx.fillRect(cx - 4, screenY - 38, 8, 38);
+          // 顶部金色横牌
+          ctx.fillStyle = "#d4a017";
+          ctx.fillRect(cx - 14, screenY - 50, 28, 14);
+          ctx.fillStyle = "#7c2d12";
+          ctx.fillRect(cx - 14, screenY - 50, 28, 2);
+          ctx.fillRect(cx - 14, screenY - 38, 28, 2);
+          // 顶上"君"字
+          ctx.fillStyle = "#7c2d12";
+          ctx.font = "bold 11px serif";
           ctx.textAlign = "center";
-          ctx.fillText("⚐", cx, screenY - 8);
+          ctx.textBaseline = "middle";
+          ctx.fillText("君", cx, screenY - 43);
+          ctx.textBaseline = "alphabetic";
         } else if (o.type === "pedestrian") {
-          // 行人 x 位置：从触发点开始横向移动
-          let px = -ROAD_W / 2 - 20;   // 起始在路左外
+          // 行人 x：触发后从左往右穿越
+          let px = -ROAD_W / 2 - 20;
           if (stateRef.current.triggeredPedestrians.has(i)) {
             const progress = Math.min(1, (car.y - (o.trigger_y ?? o.y - 50)) / 80);
             px = -ROAD_W / 2 - 20 + progress * (ROAD_W + 40);
           }
-          ctx.font = "20px serif";
+          // 阴影
+          ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+          ctx.beginPath();
+          ctx.ellipse(cx + px, screenY + 8, 8, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // 行人 emoji
+          ctx.font = "22px serif";
           ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
           ctx.fillText("🚶", cx + px, screenY);
+          ctx.textBaseline = "alphabetic";
         } else if (o.type === "deer") {
-          // 鹿向左逃
-          const ox = (o.x || 0);
-          ctx.font = "20px serif";
+          // 鹿（左侧），随时间小幅抖动表示逃跑
+          const ox = (o.x || 0) - Math.sin(elapsed / 200) * 3;
+          ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+          ctx.beginPath();
+          ctx.ellipse(cx + ox, screenY + 8, 10, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = "24px serif";
           ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
           ctx.fillText("🦌", cx + ox, screenY);
+          ctx.textBaseline = "alphabetic";
         }
       }
 
-      // 车（屏幕中下）
+      // 6) 车（俯视马车样式）
       const carScreenX = CANVAS_W / 2 + car.x * PX_PER_M;
       const carScreenY = CANVAS_H - (car.y - cameraY) * PX_PER_M;
-      ctx.fillStyle = "#1a1a1a";
+      // 车阴影
+      ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(carScreenX + 2, carScreenY + 14, CAR_W, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 前马（两匹）
+      ctx.fillStyle = "#8a6a4a";
+      ctx.fillRect(carScreenX - 7, carScreenY - 22, 4, 8);   // 左马
+      ctx.fillRect(carScreenX + 3, carScreenY - 22, 4, 8);   // 右马
+      ctx.fillStyle = "#5a3a1a";
+      ctx.fillRect(carScreenX - 7, carScreenY - 24, 4, 2);   // 左马头
+      ctx.fillRect(carScreenX + 3, carScreenY - 24, 4, 2);   // 右马头
+      // 缰绳（深棕细线）
+      ctx.strokeStyle = "#3a2a1a";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(carScreenX - 5, carScreenY - 14);
+      ctx.lineTo(carScreenX - 4, carScreenY - 8);
+      ctx.moveTo(carScreenX + 5, carScreenY - 14);
+      ctx.lineTo(carScreenX + 4, carScreenY - 8);
+      ctx.stroke();
+      // 车厢（木色矩形）
+      ctx.fillStyle = "#7c5a36";
       ctx.fillRect(carScreenX - CAR_W / 2, carScreenY - CAR_LEN / 2, CAR_W, CAR_LEN);
-      ctx.fillStyle = "#facc15";
-      ctx.fillRect(carScreenX - 3, carScreenY - CAR_LEN / 2 - 2, 6, 2);
+      // 朱红顶棚（覆盖车厢上面 2/3）
+      const topGrad = ctx.createLinearGradient(carScreenX - CAR_W / 2, 0, carScreenX + CAR_W / 2, 0);
+      topGrad.addColorStop(0, "#7f1d1d");
+      topGrad.addColorStop(0.5, "#dc2626");
+      topGrad.addColorStop(1, "#7f1d1d");
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(carScreenX - CAR_W / 2 + 1, carScreenY - CAR_LEN / 2 + 2, CAR_W - 2, CAR_LEN - 8);
+      // 车轮（左右黑色圆）
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath();
+      ctx.arc(carScreenX - CAR_W / 2 - 2, carScreenY, 3, 0, Math.PI * 2);
+      ctx.arc(carScreenX + CAR_W / 2 + 2, carScreenY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // 车轮辐条（小白点）
+      ctx.fillStyle = "#9ca3af";
+      ctx.fillRect(carScreenX - CAR_W / 2 - 2, carScreenY - 0.5, 1, 1);
+      ctx.fillRect(carScreenX + CAR_W / 2 + 1, carScreenY - 0.5, 1, 1);
+      // 前部铜铃（金色小点，按节奏闪烁）
+      const bellOn = Math.floor(elapsed / 250) % 2 === 0;
+      ctx.fillStyle = bellOn ? "#fde047" : "#ca8a04";
+      ctx.beginPath();
+      ctx.arc(carScreenX, carScreenY - CAR_LEN / 2 - 1, 2, 0, Math.PI * 2);
+      ctx.fill();
 
       // HUD
       setHud((h) => ({
