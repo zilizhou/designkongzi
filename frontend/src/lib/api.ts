@@ -171,6 +171,21 @@ export const getShuProgress = () =>
 export const getShuLeaderboard = (limit = 20) =>
   getJSON<import("./types").ShuLeaderboardResp>(`/api/v1/shu/leaderboard?limit=${limit}`);
 
+// ── 御艺·五御 ──────────────────────────────────────────────────
+export const getYuToday = () =>
+  authJSON<import("./types").YuTodayResp>("/api/v1/yu/today");
+export const driveYuScenario = (
+  sid: number,
+  trajectory: import("./types").YuTrajectoryPoint[],
+  events: import("./types").YuEvent[],
+) =>
+  authJSON<import("./types").YuDriveResp>(`/api/v1/yu/scenario/${sid}/drive`, {
+    method: "POST",
+    body: JSON.stringify({ trajectory, events }),
+  });
+export const getYuProgress = () =>
+  authJSON<import("./types").YuProgressResp>("/api/v1/yu/progress");
+
 // ── 数艺·均输衰分 ──────────────────────────────────────────────
 export const getMathToday = () =>
   authJSON<import("./types").MathTodayResp>("/api/v1/math/today");

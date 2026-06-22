@@ -276,6 +276,107 @@ export interface ShuLeaderboardResp {
   items: { rank: number; name: string; learned: number; attempts: number }[];
 }
 
+// ── 御艺·五御 ──────────────────────────────────────────────────
+export interface YuRoadCurve {
+  start: number;
+  end: number;
+  offset: number;
+}
+export interface YuObstacle {
+  type: "junbiao" | "pedestrian" | "deer" | "crossing";
+  y: number;
+  x?: number;
+  label?: string;
+  cross_dir?: number;
+  trigger_y?: number;
+  flee_dir?: number;
+}
+export interface YuRoadConfig {
+  type: "straight" | "curve";
+  length: number;
+  beats?: number[];
+  curves?: YuRoadCurve[];
+  obstacles?: YuObstacle[];
+}
+export interface YuRefBrief {
+  ref_id: string;
+  ref_label: string;
+  text: string;
+}
+export interface YuScenarioBrief {
+  id: number;
+  title: string;
+  kind: string;
+  kind_label: string;
+  setting: string;
+  hint: string;
+  road_config: YuRoadConfig;
+  target_speed: number;
+  target_duration_ms: number;
+  answered: boolean;
+}
+export interface YuTrajectoryPoint {
+  t: number;
+  x: number;
+  y: number;
+  speed: number;
+}
+export type YuEventType =
+  | "li" | "chase" | "hit_pedestrian" | "beat_hit"
+  | "pedestrian_yield" | "junbiao_pass"
+  | "hard_brake" | "overspeed";
+export interface YuEvent {
+  t: number;
+  type: YuEventType;
+  meta?: Record<string, unknown>;
+}
+export interface YuDriveResp {
+  scenario: YuScenarioBrief;
+  score: number;
+  grade: string;
+  jie: number;
+  rang: number;
+  buji: number;
+  stats: {
+    avg_speed: number;
+    speed_std: number;
+    beat_hits: number;
+    beats_total: number;
+    li_count: number;
+    pedestrian_yields: number;
+    junbiao_passes: number;
+    hit_pedestrian: number;
+    hard_brakes: number;
+    chase_attempts: number;
+    overspeeds: number;
+  };
+  yu_delta: number;
+  xp_delta: number;
+  score_applied: boolean;
+  new_unlocked_refs: YuRefBrief[];
+  refs: YuRefBrief[];
+  progress: { liuyi_yu: number; xp: number };
+}
+export interface YuTodayResp {
+  scenarios: YuScenarioBrief[];
+  today_done_count: number;
+  daily_limit: number;
+}
+export interface YuScenarioWithBest extends YuScenarioBrief {
+  best_score: number;
+}
+export interface YuProgressResp {
+  liuyi_yu: number;
+  title: string;
+  total_plays: number;
+  avg_score: number;
+  best_score: number;
+  grade_count: Record<string, number>;
+  scenarios: YuScenarioWithBest[];
+  total_scenarios: number;
+  played_count: number;
+}
+
 // ── 数艺·均输衰分 ──────────────────────────────────────────────
 export interface MathItemBrief {
   name: string;

@@ -385,6 +385,47 @@ class ShuAnswer(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
 
 
+class YuScenario(Base):
+    """御艺·五御 — 2D 俯视驾车情境。"""
+
+    __tablename__ = "yu_scenarios"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String)
+    kind: Mapped[str] = mapped_column(String)
+    # mingheluan 鸣和鸾 / zhushui 逐水曲 / junbiao 过君表 / jiaoqu 舞交衢 / qinzuo 逐禽左
+    kind_label: Mapped[str] = mapped_column(String)
+    setting: Mapped[str] = mapped_column(Text)
+    hint: Mapped[str] = mapped_column(Text)
+    road_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    # {"type":"straight"|"curve","length":600,"beats":[2.0,4.0,...],
+    #  "obstacles":[{"type":"junbiao"|"pedestrian"|"crossing"|"deer","y":...,"x":...}]}
+    target_speed: Mapped[float] = mapped_column(Float, default=8.0)   # 目标车速 m/s
+    target_duration_ms: Mapped[int] = mapped_column(Integer, default=30000)
+    refs: Mapped[list] = mapped_column(JSON, default=list)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class YuAnswer(Base):
+    """用户驾车记录：轨迹 + 事件 + 评分。"""
+
+    __tablename__ = "yu_answers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("yu_scenarios.id"), index=True)
+    trajectory: Mapped[list] = mapped_column(JSON, default=list)
+    # [{t:0, x:0, y:0, speed:0}, ...] 每 ~100ms 一个采样
+    events: Mapped[list] = mapped_column(JSON, default=list)
+    # [{t, type:"li"|"chase"|"hit_pedestrian"|"beat"}, ...]
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    jie: Mapped[float] = mapped_column(Float, default=0.0)
+    rang: Mapped[float] = mapped_column(Float, default=0.0)
+    buji: Mapped[float] = mapped_column(Float, default=0.0)
+    grade: Mapped[str] = mapped_column(String, default="学驭")
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+
 class MathScenario(Base):
     """数艺·均输衰分 — 公平分配情境。"""
 

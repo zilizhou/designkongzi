@@ -153,6 +153,13 @@ export default function JourneyPage() {
             >
               进入「数」均输衰分 →
             </Link>
+            <Link
+              href="/journey/yu"
+              className="rounded-full border border-line bg-surface-2 px-3 py-1 text-xs text-fg hover:bg-accent-soft"
+              title="五御 · 礼以行之，不极不躁"
+            >
+              进入「御」五御之礼 →
+            </Link>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
