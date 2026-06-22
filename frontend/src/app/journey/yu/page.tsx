@@ -13,7 +13,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { driveYuScenario, getYuProgress, getYuToday } from "@/lib/api";
 import type {
   YuDriveResp,
@@ -21,7 +21,6 @@ import type {
   YuObstacle,
   YuProgressResp,
   YuRefBrief,
-  YuScenarioBrief,
   YuTodayResp,
   YuTrajectoryPoint,
 } from "@/lib/types";
@@ -31,7 +30,6 @@ const CANVAS_H = 540;       // 内部画布高
 const ROAD_W = 160;         // 道路宽度
 const CAR_LEN = 20;
 const CAR_W = 14;
-const HUD_BAR_H = 60;
 const MAX_SPEED = 14;       // m/s 上限
 const ACC = 8;              // 加速度 m/s²
 const BRK = 18;             // 刹车减速度 m/s²
@@ -192,20 +190,7 @@ export default function YuJourneyPage() {
       const maxX = (ROAD_W / PX_PER_M) / 2 - (CAR_W / PX_PER_M);
       car.x = Math.max(-maxX, Math.min(maxX, car.x));
 
-      // 弯道偏移（zhushui）
-      let roadCenterOffset = 0;
-      for (const c of curves) {
-        if (car.y >= c.start && car.y <= c.end) {
-          const t = (car.y - c.start) / (c.end - c.start);
-          roadCenterOffset = c.offset * Math.sin(t * Math.PI);
-          break;
-        }
-      }
-      // 玩家车在车道内 = 车 x 与 roadCenterOffset 之差小
-      // 这里 stateRef.current.car.x 是玩家相对车道中心的偏移
-      // 但 roadCenterOffset 在曲线场景偏移了——为了判定，把 effective 车的世界横位 = car.x（玩家自己控制）减去 roadCenterOffset/PX_PER_M
-      // 如果玩家不跟着曲线弯就偏离 — 加一个 swerve 事件
-      // 简化：仅用于渲染时偏移道路
+      // 弯道渲染：在渲染时按 worldY 现算偏移，物理判定简化（不在此处处理 swerve）
 
       // 节拍命中（beats 是按目标时间到 beats[i] 秒时玩家应正好到 y = i*段长）
       while (
@@ -244,8 +229,6 @@ export default function YuJourneyPage() {
           if (stateRef.current.triggeredPedestrians.has(i)) {
             if (Math.abs(car.y - o.y) < 15) {
               if (car.speed < 1) {
-                // 这次让行就记一次（用 -i 区分）
-                const k = `yield-${i}`;
                 if (!stateRef.current.events.some(
                   (e) => e.type === "pedestrian_yield" && e.meta?.idx === i
                 )) {
@@ -371,10 +354,6 @@ export default function YuJourneyPage() {
           // 行人 x 位置：从触发点开始横向移动
           let px = -ROAD_W / 2 - 20;   // 起始在路左外
           if (stateRef.current.triggeredPedestrians.has(i)) {
-            const tinTrig = stateRef.current.events.find(
-              (e) => e.type === "pedestrian_yield" && e.meta?.idx === i
-            );
-            // 简化：触发后线性穿越
             const progress = Math.min(1, (car.y - (o.trigger_y ?? o.y - 50)) / 80);
             px = -ROAD_W / 2 - 20 + progress * (ROAD_W + 40);
           }
