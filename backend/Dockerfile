@@ -1,7 +1,7 @@
 # 后端镜像：FastAPI + SQLAlchemy + Chroma + bge-m3 (sentence-transformers)
 # 多阶段构建以保持镜像小
 
-FROM python:3.11-slim AS base
+FROM docker.m.daocloud.io/library/python:3.11-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
