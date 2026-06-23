@@ -117,8 +117,13 @@ def leaderboard(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_current_user),
 ) -> dict:
-    """按六艺总分排前 N。同时返回当前用户的排名（无论是否在前 N 内）。"""
-    # 一次取全量用户（SQLite 不太大，几百用户够用）。生产化可改 Postgres + 物化视图。
+    """按六艺总分排前 N。每人只占一个排名。
+
+    去重规则（游客匿名都叫"小君子"，会产生很多冗余）：
+      - 注册用户（has email）：按 user_id 唯一，永远不去重
+      - 游客：按 display_name 去重，同名只保留**最高分**的那条
+      - 当前用户（self）：永远保留自己的真实数据
+    """
     rows = db.execute(select(User)).scalars().all()
     enriched = []
     for u in rows:
@@ -126,22 +131,41 @@ def leaderboard(
         scores = [_art_score(liuyi, a["field"]) for a in ARTS]
         total = sum(scores)
         if total <= 0:
-            continue   # 完全没玩的不上榜
+            continue
         enriched.append({
             "user_id": u.id,
             "name": (u.display_name or "君子")[:8],
             "total": total,
             "by_art": {a["key"]: s for a, s in zip(ARTS, scores)},
             "is_self": user is not None and u.id == user.id,
+            "is_guest": bool(u.is_guest),
         })
+    # 先按总分排序
     enriched.sort(key=lambda x: -x["total"])
+
+    # 去重：游客按 name，注册按 user_id（其实 user_id 天然唯一，所以注册不会重）
+    seen_guest_names: set[str] = set()
+    dedupe: list[dict] = []
+    self_entry: Optional[dict] = None
+    for it in enriched:
+        if it["is_self"]:
+            self_entry = it
+        if it["is_guest"]:
+            if it["name"] in seen_guest_names:
+                # 已有更高分的同名游客，跳过 — 但如果是 self 必须保留
+                if not it["is_self"]:
+                    continue
+            seen_guest_names.add(it["name"])
+        dedupe.append(it)
+
     # 加 rank
-    for i, item in enumerate(enriched):
+    for i, item in enumerate(dedupe):
         item["rank"] = i + 1
+
     # 当前用户排名
-    self_rank = next((it for it in enriched if it["is_self"]), None)
+    self_rank = next((it for it in dedupe if it["is_self"]), None) or self_entry
     return {
-        "items": enriched[:limit],
-        "total_players": len(enriched),
+        "items": dedupe[:limit],
+        "total_players": len(dedupe),
         "self": self_rank,
     }
