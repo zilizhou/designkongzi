@@ -47,6 +47,13 @@ const KIND_COLOR: Record<string, string> = {
 
 type Phase = "idle" | "playing" | "submitting" | "scored";
 type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+type ScenarioGuide = {
+  goal: string;
+  steps: string[];
+  scoring: string[];
+  avoid: string;
+  live: string;
+};
 
 export default function YuJourneyPage() {
   const [today, setToday] = useState<YuTodayResp | null>(null);
@@ -803,6 +810,7 @@ export default function YuJourneyPage() {
   const beatTimeLeft = hasNextBeat ? Math.max(0, beats[nextBeatIndex] - hud.elapsed / 1000) : 0;
   const speedInRhythm = Math.abs(hud.speed - current.target_speed) <= 1.2;
   const progressPct = Math.max(0, Math.min(100, Math.round((hud.progressY / hud.totalY) * 100)));
+  const guide = getScenarioGuide(current.kind, current.target_speed);
 
   return (
     <div className="space-y-4">
@@ -847,12 +855,16 @@ export default function YuJourneyPage() {
           <div className="flex-1 space-y-1">
             <p className="text-sm text-fg">{current.setting}</p>
             <p className="text-[11px] text-muted">💡 {current.hint}</p>
-            {beats.length > 0 && (
-              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">
-                节拍不用听声音，看路面上的黄色“♩节拍门”。马车到达节拍门时，若时间和位置接近目标，就会变绿并计为命中；偏离太多会变红。第一关的核心是稳速接近 {current.target_speed} m/s。
-              </div>
-            )}
           </div>
+        </div>
+
+        <div className="grid gap-2 text-[11px] md:grid-cols-3">
+          <RulePanel title="本关目标" items={[guide.goal, `建议速度：接近 ${current.target_speed} m/s`]} tone="amber" />
+          <RulePanel title="怎么操作" items={guide.steps} tone="green" />
+          <RulePanel title="怎样得分" items={guide.scoring} tone="blue" />
+        </div>
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-900">
+          容易扣分：{guide.avoid}
         </div>
 
         {/* Canvas 主区 */}
@@ -903,23 +915,20 @@ export default function YuJourneyPage() {
                   <span>{speedInRhythm ? "合拍" : "调速"}</span>
                 </div>
               )}
+              <div className="mt-1 text-[10px] text-white/65">当前任务：{guide.live}</div>
             </div>
           )}
 
           {/* 启动 overlay */}
           {phase === "idle" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/55 px-6 text-white backdrop-blur">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 px-6 text-white backdrop-blur">
               <div className="font-serif text-xl">{current.title}</div>
               <div className="mt-1 text-xs opacity-80">{current.kind_label}</div>
-              <div className="mt-3 max-w-[280px] text-center text-[11px] opacity-80">
-                桌面：← → 控辕 · ↑ 扬鞭 · ↓ 收缰 · Space 礼<br/>
-                手机：用底部按钮
-                {beats.length > 0 && (
-                  <>
-                    <br/>
-                    看路面黄色 ♩ 节拍门，稳速通过即为合拍。
-                  </>
-                )}
+              <div className="mt-3 w-full max-w-[290px] rounded-xl bg-white/12 p-3 text-left text-[11px] leading-relaxed">
+                <div className="font-medium text-white">开局 3 步</div>
+                <div className="mt-1">1. 按 ↑ 或“扬鞭”起步，速度接近目标值。</div>
+                <div>2. 用 ← → 或“左辕/右辕”保持在路中。</div>
+                <div>3. 按本关目标通过节拍门、君表、行人或鹿。</div>
               </div>
               <button
                 onClick={start}
@@ -992,6 +1001,13 @@ export default function YuJourneyPage() {
             <Stat2 label="超速" value={`${result.stats.overspeeds}`} ill={result.stats.overspeeds > 0} />
             <Stat2 label="追禽" value={`${result.stats.chase_attempts}`} ill={result.stats.chase_attempts > 0} />
             <Stat2 label="速度方差" value={`${result.stats.speed_std}`} />
+          </div>
+
+          <div className="mb-3 rounded-lg border border-emerald-200 bg-white/75 p-3 text-[12px] text-emerald-950">
+            <div className="mb-1 font-medium">这局怎么看</div>
+            {resultTips(result).map((tip) => (
+              <div key={tip} className="mt-1">{tip}</div>
+            ))}
           </div>
 
           {/* 解锁经典 */}
@@ -1077,6 +1093,27 @@ function Stat2({ label, value, ill }: { label: string; value: string; ill?: bool
     </div>
   );
 }
+function RulePanel({
+  title, items, tone,
+}: {
+  title: string;
+  items: string[];
+  tone: "amber" | "green" | "blue";
+}) {
+  const cls = {
+    amber: "border-amber-200 bg-amber-50 text-amber-950",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    blue: "border-sky-200 bg-sky-50 text-sky-950",
+  }[tone];
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${cls}`}>
+      <div className="mb-1 text-[10px] font-medium tracking-widest">{title}</div>
+      {items.map((item) => (
+        <div key={item} className="mt-0.5 leading-relaxed">· {item}</div>
+      ))}
+    </div>
+  );
+}
 function MetricBar({ label, value, color }: { label: string; value: number; color: string }) {
   const pct = Math.round(value * 100);
   return (
@@ -1124,4 +1161,84 @@ function gradeColor(grade: string): string {
     case "试驭": return "#534AB7";
     default:     return "#737373";
   }
+}
+
+function getScenarioGuide(kind: string, targetSpeed: number): ScenarioGuide {
+  const commonScore = [
+    `平均速度越接近 ${targetSpeed} m/s 越好`,
+    "少急刹、少超速、保持行车平稳",
+  ];
+  switch (kind) {
+    case "mingheluan":
+      return {
+        goal: "稳住速度，按时穿过路面黄色 ♩ 节拍门",
+        steps: ["按 ↑ 加速到目标速度", "看到黄色节拍门时不要乱转", "通过后变绿表示命中"],
+        scoring: [...commonScore, "6 个节拍门命中越多越高分"],
+        avoid: "速度忽快忽慢、太早或太晚到节拍门、频繁急刹。",
+        live: "稳速，等下一道黄色节拍门进入车前。",
+      };
+    case "zhushui":
+      return {
+        goal: "沿弯道行驶，尽量贴近道路中线",
+        steps: ["提前观察道路弯向", "用 ← → 小幅修正方向", "速度稳定，不要冲出路面"],
+        scoring: commonScore,
+        avoid: "大幅左右摆动、弯前不减速、贴边行驶。",
+        live: "看前方弯道，用小幅控辕保持居中。",
+      };
+    case "junbiao":
+      return {
+        goal: "遇到君表要减速，并在通过时按“礼”",
+        steps: ["看到君表先收缰减速", "速度降到 4 m/s 以下", "接近/经过君表时按 Space 或“礼”"],
+        scoring: [...commonScore, "君表礼让次数越完整越高分"],
+        avoid: "高速冲过君表、忘记按“礼”、临近时猛刹。",
+        live: "见君表先慢下来，到表前后按礼。",
+      };
+    case "jiaoqu":
+      return {
+        goal: "路口见行人必须停车让行",
+        steps: ["看到行人出现就收缰", "到路口前降到 1 m/s 以下", "等行人通过后再扬鞭起步"],
+        scoring: [...commonScore, "成功让行会加分，撞行人会重扣"],
+        avoid: "行人前不停车、刚停下又立刻起步、超速过路口。",
+        live: "看路口行人，先停稳再重新起步。",
+      };
+    case "qinzuo":
+      return {
+        goal: "鹿从左侧逃走时，不要偏左追逐",
+        steps: ["看到鹿保持原路", "不要向左追", "稳定向前到终点"],
+        scoring: [...commonScore, "不追逐逃走的鹿就是礼"],
+        avoid: "向左偏转追鹿、为了追鹿突然加速或急转。",
+        live: "见鹿不追，守住道路中线。",
+      };
+    default:
+      return {
+        goal: "平稳驾车到达终点",
+        steps: ["↑ 加速", "↓ 减速", "← → 控辕"],
+        scoring: commonScore,
+        avoid: "超速、急刹、偏离任务目标。",
+        live: "平稳前进，完成本关目标。",
+      };
+  }
+}
+
+function resultTips(result: YuDriveResp): string[] {
+  const tips: string[] = [];
+  if (result.stats.beats_total > 0) {
+    tips.push(`节拍：命中 ${result.stats.beat_hits}/${result.stats.beats_total}。黄线门变绿就是踩准，变红说明到得太早或太晚。`);
+  }
+  if (result.stats.junbiao_passes > 0 || result.stats.li_count > 0) {
+    tips.push(`礼让：君表通过 ${result.stats.junbiao_passes} 次，按礼 ${result.stats.li_count} 次。要慢下来再按礼。`);
+  }
+  if (result.stats.pedestrian_yields > 0 || result.stats.hit_pedestrian > 0) {
+    tips.push(`行人：让行 ${result.stats.pedestrian_yields} 次${result.stats.hit_pedestrian > 0 ? `，撞到 ${result.stats.hit_pedestrian} 次` : ""}。路口前停稳最关键。`);
+  }
+  if (result.stats.chase_attempts > 0) {
+    tips.push(`逐禽：出现 ${result.stats.chase_attempts} 次追逐。鹿逃走时不要向左追，守住原路更高分。`);
+  }
+  if (result.stats.overspeeds > 0 || result.stats.hard_brakes > 2) {
+    tips.push(`平稳：超速 ${result.stats.overspeeds} 次，急刹 ${result.stats.hard_brakes} 次。少猛按，提前减速。`);
+  } else {
+    tips.push("平稳：没有明显超速或频繁急刹，节制做得不错。");
+  }
+  tips.push(`速度：平均 ${result.stats.avg_speed} m/s，速度方差 ${result.stats.speed_std}。越接近目标且越稳定，“节”越高。`);
+  return tips;
 }
