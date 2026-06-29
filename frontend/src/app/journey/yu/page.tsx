@@ -46,6 +46,7 @@ const KIND_COLOR: Record<string, string> = {
 };
 
 type Phase = "idle" | "playing" | "submitting" | "scored";
+type AudioWindow = Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext };
 
 export default function YuJourneyPage() {
   const [today, setToday] = useState<YuTodayResp | null>(null);
@@ -55,8 +56,12 @@ export default function YuJourneyPage() {
   const [result, setResult] = useState<YuDriveResp | null>(null);
   const [err, setErr] = useState("");
   const [hud, setHud] = useState({ speed: 0, progressY: 0, totalY: 600, elapsed: 0, beatIdx: 0 });
+  const [soundOn, setSoundOn] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const soundOnRef = useRef(true);
+  const lastHoofAtRef = useRef(0);
   const stateRef = useRef({
     car: { x: 0, y: 0, speed: 0 },
     keys: { left: false, right: false, up: false, down: false, space: false },
@@ -75,6 +80,47 @@ export default function YuJourneyPage() {
     getYuToday().then(setToday).catch(() => setErr("无法加载乐题 — 请先登录"));
     getYuProgress().then(setProgress).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+  }, [soundOn]);
+
+  const getAudioCtx = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const Ctx = window.AudioContext || (window as AudioWindow).webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  const playTone = useCallback((
+    freq: number,
+    duration = 0.08,
+    type: OscillatorType = "sine",
+    volume = 0.035,
+  ) => {
+    if (!soundOnRef.current) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(volume, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration + 0.02);
+  }, [getAudioCtx]);
+
+  const playStartSound = useCallback(() => {
+    playTone(392, 0.09, "sine", 0.03);
+    window.setTimeout(() => playTone(523, 0.1, "sine", 0.03), 90);
+  }, [playTone]);
 
   const current = today?.scenarios[idx];
 
@@ -120,6 +166,7 @@ export default function YuJourneyPage() {
             t: performance.now() - stateRef.current.startedAt,
             type: "li",
           });
+          playTone(440, 0.07, "triangle", 0.03);
         }
         k.space = down;
         e.preventDefault();
@@ -133,7 +180,7 @@ export default function YuJourneyPage() {
       window.removeEventListener("keydown", dn);
       window.removeEventListener("keyup", up);
     };
-  }, [phase]);
+  }, [phase, playTone]);
 
   // 渲染 + 物理循环
   useEffect(() => {
@@ -170,6 +217,11 @@ export default function YuJourneyPage() {
       else car.speed -= FRICTION * dt;
       car.speed = Math.max(0, Math.min(MAX_SPEED, car.speed));
       car.y += car.speed * dt;   // 米
+      if (car.speed > 1.2 && elapsed - lastHoofAtRef.current > Math.max(160, 520 - car.speed * 24)) {
+        lastHoofAtRef.current = elapsed;
+        playTone(120 + car.speed * 4, 0.035, "square", 0.012);
+        window.setTimeout(() => playTone(96 + car.speed * 3, 0.03, "square", 0.009), 70);
+      }
 
       // 急刹判定（速度突降 >5 m/s 在 1 frame）
       if (prevSpeed - car.speed > 5 * dt * 60) {
@@ -200,9 +252,11 @@ export default function YuJourneyPage() {
         const i = stateRef.current.nextBeatIdx;
         const expectedY = ((i + 1) / (beats.length + 1)) * (roadCfg.length || 600);
         // 偏差 ≤ 30m 算命中
-        if (Math.abs(car.y - expectedY) <= 30) {
+        const beatHit = Math.abs(car.y - expectedY) <= 30;
+        if (beatHit) {
           stateRef.current.events.push({ t: elapsed, type: "beat_hit" });
         }
+        playTone(beatHit ? 660 : 185, beatHit ? 0.11 : 0.14, beatHit ? "sine" : "sawtooth", beatHit ? 0.04 : 0.025);
         stateRef.current.nextBeatIdx = i + 1;
         setHud((h) => ({ ...h, beatIdx: i + 1 }));
       }
@@ -690,7 +744,7 @@ export default function YuJourneyPage() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, current?.id]);
+  }, [phase, current?.id, playTone]);
 
   const submit = async () => {
     if (!current) return;
@@ -712,6 +766,8 @@ export default function YuJourneyPage() {
 
   const start = () => {
     resetState();
+    getAudioCtx();
+    playStartSound();
     setPhase("playing");
   };
 
@@ -730,6 +786,7 @@ export default function YuJourneyPage() {
         t: performance.now() - stateRef.current.startedAt,
         type: "li",
       });
+      playTone(440, 0.07, "triangle", 0.03);
     }
     k[key] = down;
   };
@@ -745,6 +802,7 @@ export default function YuJourneyPage() {
   const beatDistance = Math.max(0, Math.round(nextBeatY - hud.progressY));
   const beatTimeLeft = hasNextBeat ? Math.max(0, beats[nextBeatIndex] - hud.elapsed / 1000) : 0;
   const speedInRhythm = Math.abs(hud.speed - current.target_speed) <= 1.2;
+  const progressPct = Math.max(0, Math.min(100, Math.round((hud.progressY / hud.totalY) * 100)));
 
   return (
     <div className="space-y-4">
@@ -798,35 +856,59 @@ export default function YuJourneyPage() {
         </div>
 
         {/* Canvas 主区 */}
-        <div className="relative mx-auto" style={{ width: CANVAS_W, maxWidth: "100%" }}>
+        <div
+          className="relative mx-auto overflow-hidden rounded-2xl border-2 border-line bg-surface-2 shadow-sm"
+          style={{ width: CANVAS_W, maxWidth: "100%" }}
+        >
           <canvas
             ref={canvasRef}
-            className="block w-full rounded-xl border-2 border-line bg-surface-2"
+            className="block w-full bg-surface-2"
             style={{ aspectRatio: `${CANVAS_W} / ${CANVAS_H}`, touchAction: "none" }}
           />
 
-          {/* HUD overlay */}
-          {phase === "playing" && (
-            <div className="pointer-events-none absolute left-2 right-2 top-2 flex justify-between text-[11px] text-white">
-              <div className="rounded bg-black/55 px-2 py-1 backdrop-blur">
-                速度 {hud.speed} m/s · 目标 {current.target_speed}
-              </div>
-              <div className="rounded bg-black/55 px-2 py-1 backdrop-blur">
-                {hud.progressY}/{hud.totalY} m · {(hud.elapsed / 1000).toFixed(1)}s
-              </div>
-            </div>
-          )}
+          <button
+            type="button"
+            title={soundOn ? "关闭声音" : "开启声音"}
+            onClick={() => {
+              const next = !soundOn;
+              soundOnRef.current = next;
+              setSoundOn(next);
+              if (next) {
+                getAudioCtx();
+                playTone(523, 0.08, "sine", 0.03);
+              }
+            }}
+            className="absolute right-2 top-2 z-30 rounded-full bg-stone-950/65 px-3 py-1 text-[11px] font-medium text-white backdrop-blur hover:bg-stone-950/80"
+          >
+            {soundOn ? "声 开" : "声 关"}
+          </button>
 
-          {hasNextBeat && (
-            <div className="pointer-events-none absolute left-2 right-2 top-10 rounded bg-amber-500/90 px-3 py-2 text-center text-[11px] font-medium text-stone-950 shadow-sm">
-              下一拍 ♩{nextBeatIndex + 1}：看路面黄线门 · 距 {beatDistance}m · 约 {beatTimeLeft.toFixed(1)}s
-              <span className="ml-2">{speedInRhythm ? "合拍速度" : "调到目标速度"}</span>
+          {phase === "playing" && (
+            <div className="pointer-events-none absolute left-2 right-2 bottom-2 z-20 rounded-xl bg-stone-950/70 p-2 text-white shadow-sm backdrop-blur">
+              <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-white/20">
+                <div className="h-full rounded-full bg-amber-300 transition-all" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <div>
+                  <span className="font-medium">速 {hud.speed}</span>
+                  <span className="text-white/65"> / {current.target_speed} m/s</span>
+                </div>
+                <div className="text-white/80">{hud.progressY}/{hud.totalY} m</div>
+                <div className="text-white/80">{(hud.elapsed / 1000).toFixed(1)}s</div>
+              </div>
+              {hasNextBeat && (
+                <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-amber-400/90 px-2 py-1 text-[11px] font-medium text-stone-950">
+                  <span>下一拍 ♩{nextBeatIndex + 1}</span>
+                  <span>距 {beatDistance}m · {beatTimeLeft.toFixed(1)}s</span>
+                  <span>{speedInRhythm ? "合拍" : "调速"}</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* 启动 overlay */}
           {phase === "idle" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/55 text-white backdrop-blur">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/55 px-6 text-white backdrop-blur">
               <div className="font-serif text-xl">{current.title}</div>
               <div className="mt-1 text-xs opacity-80">{current.kind_label}</div>
               <div className="mt-3 max-w-[280px] text-center text-[11px] opacity-80">
@@ -845,6 +927,9 @@ export default function YuJourneyPage() {
               >
                 ▶ 登车起驾
               </button>
+              <div className="mt-3 text-[10px] text-white/70">
+                声音可用右上角按钮关闭
+              </div>
             </div>
           )}
 
