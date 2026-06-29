@@ -628,11 +628,11 @@ export default function YuJourneyPage() {
       ctx.fillStyle = "#d4a017";
       ctx.fillRect(-CAR_W / 2 + 2, -CAR_LEN / 2 + 5, CAR_W - 4, 1.5);
       ctx.fillRect(-CAR_W / 2 + 2, -CAR_LEN / 2 + CAR_LEN - 11, CAR_W - 4, 1.5);
-      // 车窗（小方块）
-      ctx.fillStyle = "#1a1a1a";
+      // 车舆前缘木栏，避免出现类似现代车灯的高亮色块
+      ctx.fillStyle = "#2b1b12";
       ctx.fillRect(-CAR_W / 2 + 5, -2, CAR_W - 10, 6);
-      ctx.fillStyle = "#fde047";
-      ctx.fillRect(-CAR_W / 2 + 6, -1, CAR_W - 12, 4);
+      ctx.fillStyle = "#8b5a2b";
+      ctx.fillRect(-CAR_W / 2 + 6, -1, CAR_W - 12, 3);
 
       // 古车两大轮（左右各一）
       const wheelR = 7;
@@ -661,18 +661,6 @@ export default function YuJourneyPage() {
         ctx.lineTo(wx, wy + wheelR - 1);
         ctx.stroke();
       }
-
-      // 前部铜铃（金色小球，按节奏闪烁）
-      const bellOn = Math.floor(elapsed / 250) % 2 === 0;
-      ctx.fillStyle = bellOn ? "#fde047" : "#ca8a04";
-      ctx.beginPath();
-      ctx.arc(0, -CAR_LEN / 2 - 3, 3, 0, Math.PI * 2);
-      ctx.fill();
-      // 铃的反光
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(-1, -CAR_LEN / 2 - 4, 1, 0, Math.PI * 2);
-      ctx.fill();
 
       ctx.restore();
 
