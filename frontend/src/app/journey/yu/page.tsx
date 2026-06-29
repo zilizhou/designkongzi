@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * 御艺·五御 2D 俯视驾车
+ * 御艺·五御 2D 俯视驭马车
  *
  * 操作：
- *   桌面：← → 调位置，↑ 油门，↓ 刹车，Space = 礼（鞠躬/停车）
- *   手机：屏幕左侧位置滑块，右侧速度滑块，底部「礼」按钮
+ *   桌面：← → 控辕调位，↑ 扬鞭催行，↓ 收缰缓行，Space = 礼（停车/致礼）
+ *   手机：底部控辕、催行、收缰、礼按钮
  *
  * 系统每帧前进：y += speed * dt
  * 收集 trajectory（每 ~150ms 采样）+ events（关键动作时间戳）
@@ -28,8 +28,8 @@ import type {
 const CANVAS_W = 360;       // 内部画布宽
 const CANVAS_H = 540;       // 内部画布高
 const ROAD_W = 160;         // 道路宽度
-const CAR_LEN = 36;
-const CAR_W = 24;
+const CAR_LEN = 38;
+const CAR_W = 26;
 const MAX_SPEED = 14;       // m/s 上限
 const ACC = 8;              // 加速度 m/s²
 const BRK = 18;             // 刹车减速度 m/s²
@@ -103,7 +103,7 @@ export default function YuJourneyPage() {
 
   useEffect(() => {
     if (current) resetState();
-  }, [current?.id, resetState]);
+  }, [current, resetState]);
 
   // 键盘事件
   useEffect(() => {
@@ -502,7 +502,7 @@ export default function YuJourneyPage() {
         }
       }
 
-      // 6) 车（俯视马车样式 — 大、可转向）
+      // 6) 马车（俯视双马一车 — 大、可转向）
       const carScreenX = CANVAS_W / 2 + car.x * PX_PER_M;
       const carScreenY = CANVAS_H - (car.y - cameraY) * PX_PER_M;
 
@@ -520,10 +520,10 @@ export default function YuJourneyPage() {
         }
       }
 
-      // 车阴影（不旋转，地面阴影保持水平略偏后）
+      // 马车整体阴影（不旋转，地面阴影保持水平略偏后）
       ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
       ctx.beginPath();
-      ctx.ellipse(carScreenX + 3, carScreenY + CAR_LEN / 2 - 2, CAR_W / 2 + 4, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(carScreenX + 3, carScreenY + CAR_LEN / 2 - 2, CAR_W / 2 + 10, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // 以下绘制都用车中心 (0,0) 作原点，前方为 -y
@@ -531,38 +531,83 @@ export default function YuJourneyPage() {
       ctx.translate(carScreenX, carScreenY);
       ctx.rotate(headingAngle);
 
-      // 前两匹马（在车头前方约 12 像素处）
-      const horseY = -CAR_LEN / 2 - 14;     // 马身中心 y
-      ctx.fillStyle = "#8a6a4a";
-      ctx.fillRect(-9, horseY, 6, 14);       // 左马身
-      ctx.fillRect(3, horseY, 6, 14);        // 右马身
-      ctx.fillStyle = "#5a3a1a";
-      // 马头（更深色三角形朝前）
+      // 车辕与横轭
+      ctx.strokeStyle = "#5b3a1e";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-6, horseY - 4);            // 左马头
-      ctx.lineTo(-9, horseY);
-      ctx.lineTo(-3, horseY);
-      ctx.closePath();
-      ctx.fill();
+      ctx.moveTo(-5, -CAR_LEN / 2);
+      ctx.lineTo(-10, -CAR_LEN / 2 - 32);
+      ctx.moveTo(5, -CAR_LEN / 2);
+      ctx.lineTo(10, -CAR_LEN / 2 - 32);
+      ctx.stroke();
+      ctx.strokeStyle = "#3a2818";
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(6, horseY - 4);             // 右马头
-      ctx.lineTo(3, horseY);
-      ctx.lineTo(9, horseY);
-      ctx.closePath();
-      ctx.fill();
-      // 马尾鬃（深色小条）
-      ctx.fillStyle = "#3a2818";
-      ctx.fillRect(-6.5, horseY + 14, 1, 3);
-      ctx.fillRect(5.5, horseY + 14, 1, 3);
+      ctx.moveTo(-21, -CAR_LEN / 2 - 31);
+      ctx.lineTo(21, -CAR_LEN / 2 - 31);
+      ctx.stroke();
 
-      // 缰绳（从马屁股拉到车前）
+      // 前两匹马：椭圆马身 + 马头 + 四蹄，轮廓更醒目
+      const horseY = -CAR_LEN / 2 - 43;
+      const gait = Math.sin(elapsed / 120) * 1.4;
+      const drawHorse = (x: number, coat: string) => {
+        ctx.save();
+        ctx.translate(x, horseY);
+        ctx.fillStyle = coat;
+        ctx.beginPath();
+        ctx.ellipse(0, 8, 6, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#4a2f18";
+        ctx.beginPath();
+        ctx.ellipse(0, -6, 5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // 耳
+        ctx.beginPath();
+        ctx.moveTo(-3, -11);
+        ctx.lineTo(-5, -16);
+        ctx.lineTo(-1, -12);
+        ctx.moveTo(3, -11);
+        ctx.lineTo(5, -16);
+        ctx.lineTo(1, -12);
+        ctx.fill();
+        // 鬃
+        ctx.strokeStyle = "#2d1b10";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -1);
+        ctx.lineTo(0, 16);
+        ctx.stroke();
+        // 四蹄
+        ctx.strokeStyle = "#2d1b10";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(-7, 7 + gait);
+        ctx.moveTo(4, 0);
+        ctx.lineTo(7, 7 - gait);
+        ctx.moveTo(-4, 14);
+        ctx.lineTo(-7, 21 - gait);
+        ctx.moveTo(4, 14);
+        ctx.lineTo(7, 21 + gait);
+        ctx.stroke();
+        // 尾
+        ctx.beginPath();
+        ctx.moveTo(0, 21);
+        ctx.lineTo(0, 27);
+        ctx.stroke();
+        ctx.restore();
+      };
+      drawHorse(-14, "#8a6a4a");
+      drawHorse(14, "#9b7653");
+
+      // 缰绳（从马具拉到车前）
       ctx.strokeStyle = "#3a2a1a";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.moveTo(-6, horseY + 14);
-      ctx.lineTo(-4, -CAR_LEN / 2);
-      ctx.moveTo(6, horseY + 14);
-      ctx.lineTo(4, -CAR_LEN / 2);
+      ctx.moveTo(-14, horseY + 12);
+      ctx.lineTo(-5, -CAR_LEN / 2 + 3);
+      ctx.moveTo(14, horseY + 12);
+      ctx.lineTo(5, -CAR_LEN / 2 + 3);
       ctx.stroke();
 
       // 车厢底（木色，带边框）
@@ -589,14 +634,12 @@ export default function YuJourneyPage() {
       ctx.fillStyle = "#fde047";
       ctx.fillRect(-CAR_W / 2 + 6, -1, CAR_W - 12, 4);
 
-      // 4 个车轮（前后左右各一）
-      const wheelR = 4;
+      // 古车两大轮（左右各一）
+      const wheelR = 7;
       ctx.fillStyle = "#1a1a1a";
       const wheelPositions = [
-        [-CAR_W / 2 - 1, -CAR_LEN / 4],     // 左前
-        [CAR_W / 2 + 1, -CAR_LEN / 4],      // 右前
-        [-CAR_W / 2 - 1, CAR_LEN / 4],      // 左后
-        [CAR_W / 2 + 1, CAR_LEN / 4],       // 右后
+        [-CAR_W / 2 - 3, 3],
+        [CAR_W / 2 + 3, 3],
       ];
       for (const [wx, wy] of wheelPositions) {
         ctx.beginPath();
@@ -607,8 +650,16 @@ export default function YuJourneyPage() {
       ctx.fillStyle = "#9ca3af";
       for (const [wx, wy] of wheelPositions) {
         ctx.beginPath();
-        ctx.arc(wx, wy, 1.5, 0, Math.PI * 2);
+        ctx.arc(wx, wy, 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = "#d1d5db";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(wx - wheelR + 1, wy);
+        ctx.lineTo(wx + wheelR - 1, wy);
+        ctx.moveTo(wx, wy - wheelR + 1);
+        ctx.lineTo(wx, wy + wheelR - 1);
+        ctx.stroke();
       }
 
       // 前部铜铃（金色小球，按节奏闪烁）
@@ -692,9 +743,9 @@ export default function YuJourneyPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs tracking-widest text-accent">六艺 · 御</div>
-            <div className="font-serif text-lg text-fg">五御 · 礼以行之</div>
+            <div className="font-serif text-lg text-fg">五御 · 驭马车</div>
             <div className="mt-1 text-[10px] text-muted">
-              非赛车 — 节奏、礼让、节制三者皆备方为善御
+              执辔驭车 — 节奏、礼让、节制三者皆备方为善御
             </div>
           </div>
           {progress && (
@@ -757,14 +808,14 @@ export default function YuJourneyPage() {
               <div className="font-serif text-xl">{current.title}</div>
               <div className="mt-1 text-xs opacity-80">{current.kind_label}</div>
               <div className="mt-3 max-w-[280px] text-center text-[11px] opacity-80">
-                桌面：← → 调位 · ↑ 油门 · ↓ 刹车 · Space 礼<br/>
+                桌面：← → 控辕 · ↑ 扬鞭 · ↓ 收缰 · Space 礼<br/>
                 手机：用底部按钮
               </div>
               <button
                 onClick={start}
                 className="mt-4 rounded-full bg-accent px-6 py-2 text-sm hover:opacity-90"
               >
-                ▶ 起驾
+                ▶ 登车起驾
               </button>
             </div>
           )}
@@ -779,10 +830,10 @@ export default function YuJourneyPage() {
         {/* 触屏操作（仅 playing 显示）*/}
         {phase === "playing" && (
           <div className="grid grid-cols-5 gap-2 sm:hidden">
-            <TouchBtn onDown={() => touchKey("left", true)} onUp={() => touchKey("left", false)}>←</TouchBtn>
-            <TouchBtn onDown={() => touchKey("up", true)} onUp={() => touchKey("up", false)}>↑</TouchBtn>
-            <TouchBtn onDown={() => touchKey("down", true)} onUp={() => touchKey("down", false)}>↓</TouchBtn>
-            <TouchBtn onDown={() => touchKey("right", true)} onUp={() => touchKey("right", false)}>→</TouchBtn>
+            <TouchBtn onDown={() => touchKey("left", true)} onUp={() => touchKey("left", false)}>左辕</TouchBtn>
+            <TouchBtn onDown={() => touchKey("up", true)} onUp={() => touchKey("up", false)}>扬鞭</TouchBtn>
+            <TouchBtn onDown={() => touchKey("down", true)} onUp={() => touchKey("down", false)}>收缰</TouchBtn>
+            <TouchBtn onDown={() => touchKey("right", true)} onUp={() => touchKey("right", false)}>右辕</TouchBtn>
             <TouchBtn onDown={() => touchKey("space", true)} onUp={() => touchKey("space", false)} accent>礼</TouchBtn>
           </div>
         )}
