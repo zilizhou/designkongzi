@@ -25,6 +25,7 @@ export default function MathJourneyPage() {
   const [progress, setProgress] = useState<MathProgressResp | null>(null);
   const [idx, setIdx] = useState(0);
   const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [weights, setWeights] = useState<Record<string, number>>({});
   const [result, setResult] = useState<MathSolveResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -39,12 +40,12 @@ export default function MathJourneyPage() {
   // 切换场景时清零
   useEffect(() => {
     if (current) {
-      const init: Record<string, number> = {};
-      for (const it of current.items) init[it.name] = 0;
-      setAllocations(init);
+      const initWeights = current.default_weights ?? {};
+      setWeights(initWeights);
+      setAllocations(computeSuggestedAllocations(current, initWeights));
       setResult(null);
     }
-  }, [current?.id]);
+  }, [current]);
 
   const setAlloc = (name: string, v: number) => {
     if (result || !current) return;
@@ -56,6 +57,12 @@ export default function MathJourneyPage() {
     [allocations],
   );
 
+  const hasMetrics = !!current?.items.some((it) => it.metrics && Object.keys(it.metrics).length > 0);
+  const suggestedAllocations = useMemo(
+    () => (current ? computeSuggestedAllocations(current, weights) : {}),
+    [current, weights],
+  );
+
   // 平均分 — 一键填入"理论平均"作为参考
   const distributeEqual = () => {
     if (!current || result) return;
@@ -63,6 +70,16 @@ export default function MathJourneyPage() {
     const next: Record<string, number> = {};
     for (const it of current.items) next[it.name] = Math.round(per * 10) / 10;
     setAllocations(next);
+  };
+
+  const applySuggested = () => {
+    if (!current || result) return;
+    setAllocations(suggestedAllocations);
+  };
+
+  const setWeight = (key: string, value: number) => {
+    if (result) return;
+    setWeights((prev) => ({ ...prev, [key]: value }));
   };
 
   const clearAll = () => {
@@ -146,9 +163,55 @@ export default function MathJourneyPage() {
           </div>
           <div className="flex-1 space-y-1">
             <p className="text-sm text-fg">{current.setting}</p>
-            <p className="text-[11px] text-muted">💡 {current.hint}</p>
+            <p className="text-[11px] text-muted">{current.hint}</p>
+            {current.principle && (
+              <p className="text-[11px] text-accent">{current.principle}</p>
+            )}
           </div>
         </div>
+
+        {/* 原则权重 */}
+        {hasMetrics && (
+          <div className="rounded-lg border border-line bg-surface-2/30 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-medium text-fg">分配原则</div>
+                <div className="text-[10px] text-muted">调整权重，观察资源如何随治理判断改变</div>
+              </div>
+              {!result && (
+                <button
+                  onClick={applySuggested}
+                  className="rounded-full border border-accent/30 bg-accent-soft px-3 py-1.5 text-xs text-accent hover:bg-surface"
+                >
+                  应用建议
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {Object.entries(current.metric_labels ?? {}).map(([key, label]) => {
+                const value = weights[key] ?? 0;
+                return (
+                  <div key={key} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted">{label}</span>
+                      <span className="font-mono text-accent">{value.toFixed(1)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      value={value}
+                      disabled={!!result}
+                      onChange={(e) => setWeight(key, parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 每项分配行 */}
         <div className="space-y-3">
@@ -178,6 +241,16 @@ export default function MathJourneyPage() {
                     <span className="text-[10px] text-muted">{current.unit}</span>
                   </div>
                 </div>
+                {hasMetrics && !result && (
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
+                    <span>建议 {formatAmount(suggestedAllocations[it.name] ?? 0)} {current.unit}</span>
+                    {Object.entries(it.metrics ?? {}).map(([key, value]) => (
+                      <span key={key} className="rounded-full bg-surface px-2 py-0.5">
+                        {(current.metric_labels ?? {})[key] ?? key}: {value}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="range"
                   min={0}
@@ -238,6 +311,14 @@ export default function MathJourneyPage() {
         <div className="flex flex-wrap justify-center gap-3">
           {!result && (
             <>
+              {hasMetrics && (
+                <button
+                  onClick={applySuggested}
+                  className="rounded-full border border-line bg-surface-2 px-4 py-2 text-xs text-muted hover:bg-surface"
+                >
+                  按原则分配
+                </button>
+              )}
               <button
                 onClick={distributeEqual}
                 className="rounded-full border border-line bg-surface-2 px-4 py-2 text-xs text-muted hover:bg-surface"
@@ -299,6 +380,16 @@ export default function MathJourneyPage() {
               <MetricBar label="节度（不过度倾斜）" value={result.moderation} color={gradeColor(result.grade)} />
             </div>
           </div>
+
+          {result.feedback.length > 0 && (
+            <div className="mb-3 grid gap-2 md:grid-cols-2">
+              {result.feedback.map((line) => (
+                <div key={line} className="rounded-lg border border-emerald-200 bg-white/60 p-3 text-xs text-emerald-950">
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mb-2 text-sm font-medium text-emerald-900">
             数艺 +{result.shu_delta} · xp +{result.xp_delta}
@@ -376,6 +467,34 @@ function MetricBar({ label, value, color }: { label: string; value: number; colo
       </div>
     </div>
   );
+}
+function computeSuggestedAllocations(
+  scenario: MathScenarioBrief,
+  weights: Record<string, number>,
+): Record<string, number> {
+  const raw = scenario.items.map((it) => {
+    const metrics = it.metrics ?? {};
+    const score = Object.entries(metrics).reduce((sum, [key, value]) => {
+      return sum + Math.max(0, value) * Math.max(0, weights[key] ?? 0);
+    }, 0);
+    return { name: it.name, score };
+  });
+  const totalScore = raw.reduce((sum, it) => sum + it.score, 0);
+  if (totalScore <= 0) {
+    const per = scenario.total / Math.max(1, scenario.items.length);
+    return Object.fromEntries(scenario.items.map((it) => [it.name, round1(per)]));
+  }
+  return Object.fromEntries(
+    raw.map((it) => [it.name, round1((it.score / totalScore) * scenario.total)]),
+  );
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function formatAmount(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "");
 }
 function gradeColor(grade: string): string {
   switch (grade) {

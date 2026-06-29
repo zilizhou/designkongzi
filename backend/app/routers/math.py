@@ -50,6 +50,17 @@ def _ref(db: Session, ref_id: str) -> Optional[dict]:
 
 
 def _scenario_brief(s: MathScenario, answered: bool = False) -> dict:
+    items = list(s.items or [])
+    metric_labels: dict[str, str] = {}
+    default_weights: dict[str, float] = {}
+    for it in items:
+        for key, value in (it.get("metric_labels") or {}).items():
+            metric_labels.setdefault(key, value)
+        for key, value in (it.get("default_weights") or {}).items():
+            default_weights.setdefault(key, value)
+        for key in (it.get("metrics") or {}).keys():
+            metric_labels.setdefault(key, key)
+            default_weights.setdefault(key, 1.0)
     return {
         "id": s.id,
         "title": s.title,
@@ -57,7 +68,17 @@ def _scenario_brief(s: MathScenario, answered: bool = False) -> dict:
         "kind_label": s.kind_label,
         "setting": s.setting,
         "hint": s.hint,
-        "items": [{"name": it["name"], "attrs": it["attrs"]} for it in (s.items or [])],
+        "items": [
+            {
+                "name": it["name"],
+                "attrs": it["attrs"],
+                "metrics": it.get("metrics", {}),
+            }
+            for it in items
+        ],
+        "metric_labels": metric_labels,
+        "default_weights": default_weights,
+        "principle": (items[0].get("principle") if items else None) or "",
         # 不暴露 ideal_share — 答完再揭晓
         "total": s.total,
         "unit": s.unit,
@@ -121,6 +142,25 @@ def score_allocations(
         "fairness": round(fairness, 3),
         "moderation": round(moderation, 3),
     }
+
+
+def _feedback(score: int, sum_match: float, fairness: float, moderation: float) -> list[str]:
+    tips: list[str] = []
+    if sum_match < 0.92:
+        tips.append("总量尚未合准：治数先要使账目相符，仓廪、工日、兵额不可凭感觉增减。")
+    else:
+        tips.append("合总有度：总额控制得较稳，具备公共分配的基本秩序。")
+    if fairness < 0.88:
+        tips.append("分配原则还不够清晰：可重新权衡人口、灾情、路程、能力等指标。")
+    else:
+        tips.append("均衡较好：各项分配与情境权重接近，体现「不患寡而患不均」。")
+    if moderation < 0.82:
+        tips.append("倾斜略重：照顾重点对象可以，但过度集中会损伤其余人的安定感。")
+    else:
+        tips.append("节度尚可：没有让单一对象过度占用资源，保留了整体和气。")
+    if score >= 90:
+        tips.append("可称衡均：既合算，也合情，已接近数艺中的治理判断。")
+    return tips
 
 
 # ──────────────────────────────────────────
@@ -225,6 +265,7 @@ def solve(
         "sum_match": ev["sum_match"],
         "fairness": ev["fairness"],
         "moderation": ev["moderation"],
+        "feedback": _feedback(ev["score"], ev["sum_match"], ev["fairness"], ev["moderation"]),
         "shu_delta": sh_inc if score_applied else 0,
         "xp_delta": xp_inc if score_applied else 0,
         "score_applied": score_applied,

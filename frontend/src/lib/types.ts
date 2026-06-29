@@ -421,6 +421,7 @@ export interface YuProgressResp {
 export interface MathItemBrief {
   name: string;
   attrs: string;
+  metrics?: Record<string, number>;
 }
 export interface MathItemIdeal {
   name: string;
@@ -439,6 +440,9 @@ export interface MathScenarioBrief {
   setting: string;
   hint: string;
   items: MathItemBrief[];
+  metric_labels?: Record<string, string>;
+  default_weights?: Record<string, number>;
+  principle?: string;
   total: number;
   unit: string;
   answered: boolean;
@@ -459,6 +463,7 @@ export interface MathSolveResp {
   sum_match: number;
   fairness: number;
   moderation: number;
+  feedback: string[];
   shu_delta: number;
   xp_delta: number;
   score_applied: boolean;
