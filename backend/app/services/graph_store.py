@@ -189,7 +189,15 @@ class Neo4jGraphStore(GraphStore):
             rec = s.run(cy, id=node_id).single()
             if not rec:
                 return {"nodes": [], "edges": []}
-            nodes = [self._node(rec["center"])] + [self._node(n) for n in rec["nodes"]]
+            seen = set()
+            nodes = []
+            for n in [rec["center"], *rec["nodes"]]:
+                node = self._node(n)
+                current_id = node.get("id")
+                if not current_id or current_id in seen:
+                    continue
+                seen.add(current_id)
+                nodes.append(node)
             ids = [n["id"] for n in nodes]
             edges = self._edges_among(s, ids)
             return {"nodes": nodes, "edges": edges, "center": node_id}

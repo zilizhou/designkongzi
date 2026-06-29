@@ -35,6 +35,38 @@ const START_NODES = [
   { id: "yi", label: "义" },
   { id: "kongzi", label: "孔子" },
 ];
+const FALLBACK_TYPE: GraphNode["type"] = "concept";
+
+function normalizeGraph(input: GraphData): GraphData {
+  const allowedTypes = new Set(Object.keys(TYPE_NAMES));
+  const nodeMap = new Map<string, GraphNode>();
+
+  input.nodes.forEach((node) => {
+    if (!node?.id) return;
+    const type = allowedTypes.has(node.type) ? node.type : FALLBACK_TYPE;
+    if (!nodeMap.has(node.id)) {
+      nodeMap.set(node.id, {
+        ...node,
+        type: type as GraphNode["type"],
+        label: node.label || node.id,
+        color: node.color || TYPE_COLORS[type],
+        meta: node.meta || {},
+      });
+    }
+  });
+
+  const edgeKeys = new Set<string>();
+  const edges = input.edges.filter((edge) => {
+    if (!edge?.source || !edge?.target || !edge.label) return false;
+    if (!nodeMap.has(edge.source) || !nodeMap.has(edge.target)) return false;
+    const key = `${edge.source}\u0000${edge.target}\u0000${edge.label}`;
+    if (edgeKeys.has(key)) return false;
+    edgeKeys.add(key);
+    return true;
+  });
+
+  return { ...input, nodes: Array.from(nodeMap.values()), edges };
+}
 
 export default function GraphPage() {
   const [center, setCenter] = useState("ren");
@@ -60,7 +92,7 @@ export default function GraphPage() {
     setErr("");
     getNeighborhood(center, depth)
       .then((d) => {
-        setData(d);
+        setData(normalizeGraph(d));
         setSelected(center);
       })
       .catch(() => setErr("无法连接后端，请先启动 uvicorn (8000)。"));
@@ -124,7 +156,7 @@ export default function GraphPage() {
             label: n.label,
             en: n.label_en,
             value: n.type,
-            category: catIndex.indexOf(n.type),
+            category: Math.max(0, catIndex.indexOf(n.type)),
             symbolSize: n.id === center ? 46 : 30,
             itemStyle: { color: n.color },
           })),
