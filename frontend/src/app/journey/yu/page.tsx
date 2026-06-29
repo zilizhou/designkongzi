@@ -162,6 +162,8 @@ export default function YuJourneyPage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent, down: boolean) => {
       const k = stateRef.current.keys;
+      const gameKey = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key);
+      if (gameKey && phase === "playing") e.preventDefault();
       if (e.key === "ArrowLeft") k.left = down;
       else if (e.key === "ArrowRight") k.right = down;
       else if (e.key === "ArrowUp") k.up = down;
@@ -176,7 +178,6 @@ export default function YuJourneyPage() {
           playTone(440, 0.07, "triangle", 0.03);
         }
         k.space = down;
-        e.preventDefault();
       }
     };
     const dn = (e: KeyboardEvent) => onKey(e, true);
