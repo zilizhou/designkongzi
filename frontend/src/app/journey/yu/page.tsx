@@ -385,7 +385,7 @@ export default function YuJourneyPage() {
         }
       }
 
-      // 4) 节拍坎（彩色弧门）
+      // 4) 节拍门：玩家看路面横向标记，不依赖声音
       for (let i = 0; i < beats.length; i++) {
         const expectedY = ((i + 1) / (beats.length + 1)) * roadLength;
         const screenY = CANVAS_H - (expectedY - cameraY) * PX_PER_M;
@@ -403,28 +403,41 @@ export default function YuJourneyPage() {
           (e) => e.type === "beat_hit" && Math.abs(e.t / 1000 - beats[i]) < 0.5,
         );
         const color = passed ? (hit ? "#10b981" : "#dc2626") : "#fbbf24";
-        // 弧形门（横向半椭圆）
         const cx = CANVAS_W / 2 + center;
         ctx.save();
+        // 路面半透明鼓点带
+        ctx.fillStyle = passed
+          ? (hit ? "rgba(16, 185, 129, 0.22)" : "rgba(220, 38, 38, 0.22)")
+          : "rgba(251, 191, 36, 0.26)";
+        ctx.fillRect(cx - ROAD_W / 2 + 8, screenY - 7, ROAD_W - 16, 14);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.ellipse(cx, screenY, ROAD_W / 2 - 6, 10, 0, Math.PI, Math.PI * 2);
+        ctx.moveTo(cx - ROAD_W / 2 + 10, screenY);
+        ctx.lineTo(cx + ROAD_W / 2 - 10, screenY);
         ctx.stroke();
-        // 命中时加白色光晕
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - ROAD_W / 2 + 18, screenY - 9);
+        ctx.lineTo(cx - ROAD_W / 2 + 18, screenY + 9);
+        ctx.moveTo(cx + ROAD_W / 2 - 18, screenY - 9);
+        ctx.lineTo(cx + ROAD_W / 2 - 18, screenY + 9);
+        ctx.stroke();
+        // 命中时加白色提示线
         if (hit) {
           ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-          ctx.lineWidth = 6;
+          ctx.lineWidth = 7;
           ctx.beginPath();
-          ctx.ellipse(cx, screenY, ROAD_W / 2 - 6, 10, 0, Math.PI, Math.PI * 2);
+          ctx.moveTo(cx - ROAD_W / 2 + 14, screenY);
+          ctx.lineTo(cx + ROAD_W / 2 - 14, screenY);
           ctx.stroke();
         }
         ctx.restore();
         // 节拍编号小字
         ctx.fillStyle = color;
-        ctx.font = "10px serif";
+        ctx.font = i === stateRef.current.nextBeatIdx ? "bold 12px serif" : "10px serif";
         ctx.textAlign = "center";
-        ctx.fillText(`♩${i + 1}`, cx, screenY - 14);
+        ctx.fillText(i === stateRef.current.nextBeatIdx ? `下一拍 ♩${i + 1}` : `♩${i + 1}`, cx, screenY - 12);
       }
 
       // 5) 障碍物
@@ -724,6 +737,15 @@ export default function YuJourneyPage() {
   if (err) return <div className="rounded-2xl bg-accent-soft p-6 text-sm text-accent">{err}</div>;
   if (!today || !current) return <div className="skeleton h-60 w-full rounded-2xl" />;
 
+  const beats = current.road_config?.beats || [];
+  const roadLength = current.road_config?.length || 600;
+  const nextBeatIndex = Math.min(hud.beatIdx, beats.length - 1);
+  const hasNextBeat = phase === "playing" && beats.length > 0 && hud.beatIdx < beats.length;
+  const nextBeatY = hasNextBeat ? ((nextBeatIndex + 1) / (beats.length + 1)) * roadLength : 0;
+  const beatDistance = Math.max(0, Math.round(nextBeatY - hud.progressY));
+  const beatTimeLeft = hasNextBeat ? Math.max(0, beats[nextBeatIndex] - hud.elapsed / 1000) : 0;
+  const speedInRhythm = Math.abs(hud.speed - current.target_speed) <= 1.2;
+
   return (
     <div className="space-y-4">
       {/* HUD */}
@@ -767,6 +789,11 @@ export default function YuJourneyPage() {
           <div className="flex-1 space-y-1">
             <p className="text-sm text-fg">{current.setting}</p>
             <p className="text-[11px] text-muted">💡 {current.hint}</p>
+            {beats.length > 0 && (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">
+                节拍不用听声音，看路面上的黄色“♩节拍门”。马车到达节拍门时，若时间和位置接近目标，就会变绿并计为命中；偏离太多会变红。第一关的核心是稳速接近 {current.target_speed} m/s。
+              </div>
+            )}
           </div>
         </div>
 
@@ -790,6 +817,13 @@ export default function YuJourneyPage() {
             </div>
           )}
 
+          {hasNextBeat && (
+            <div className="pointer-events-none absolute left-2 right-2 top-10 rounded bg-amber-500/90 px-3 py-2 text-center text-[11px] font-medium text-stone-950 shadow-sm">
+              下一拍 ♩{nextBeatIndex + 1}：看路面黄线门 · 距 {beatDistance}m · 约 {beatTimeLeft.toFixed(1)}s
+              <span className="ml-2">{speedInRhythm ? "合拍速度" : "调到目标速度"}</span>
+            </div>
+          )}
+
           {/* 启动 overlay */}
           {phase === "idle" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/55 text-white backdrop-blur">
@@ -798,6 +832,12 @@ export default function YuJourneyPage() {
               <div className="mt-3 max-w-[280px] text-center text-[11px] opacity-80">
                 桌面：← → 控辕 · ↑ 扬鞭 · ↓ 收缰 · Space 礼<br/>
                 手机：用底部按钮
+                {beats.length > 0 && (
+                  <>
+                    <br/>
+                    看路面黄色 ♩ 节拍门，稳速通过即为合拍。
+                  </>
+                )}
               </div>
               <button
                 onClick={start}
