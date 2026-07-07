@@ -349,6 +349,25 @@ class LiChoice(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
 
 
+class LiHostRound(Base):
+    """礼 ·「执礼 · 宾至如归」一局记录。
+    三维评分：敬（揖礼深浅）/ 序（迎宾顺序 + 席位）/ 节（席间时机与克己）。
+    总分 = 三维几何平均（任一维低即拉低总分，与其他五艺一致）。
+    """
+
+    __tablename__ = "li_host_rounds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    scenario_key: Mapped[str] = mapped_column(String, index=True)   # 'xiangyin' 等
+    jing: Mapped[int] = mapped_column(Integer, default=0)   # 敬 0-100
+    xu: Mapped[int] = mapped_column(Integer, default=0)     # 序 0-100
+    jie: Mapped[int] = mapped_column(Integer, default=0)    # 节 0-100
+    total: Mapped[int] = mapped_column(Integer, default=0)  # 几何平均
+    grade: Mapped[str] = mapped_column(String, default="习礼者")
+    created_at: Mapped[datetime] = mapped_column(default=func.now(), index=True)
+
+
 class ShuCard(Base):
     """书艺卡 — 每张卡 1 个汉字，问本义（4 选 1），答完展开字源故事 + 解锁经典出处。"""
 

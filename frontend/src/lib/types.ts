@@ -189,6 +189,50 @@ export interface LiProgressResp {
   unlocked_refs: { ref_id: string; ref_label: string; text: string }[];
 }
 
+// ── 礼 ·「执礼 · 宾至如归」──────────────────────────────────────
+export interface LiHostRefBrief {
+  ref_id: string;
+  ref_label: string;
+  text: string;
+}
+export interface LiHostStateItem {
+  key: string;
+  title: string;
+  played_today: boolean;
+  plays: number;
+  best_total: number | null;
+  best_grade: string | null;
+  ref_id: string;
+  ref_unlocked: boolean;
+}
+export interface LiHostProgress {
+  ru_score: number;
+  qing_score: number;
+  liuyi_li: number;
+  unlocked_count: number;
+}
+export interface LiHostTodayResp {
+  scenarios: LiHostStateItem[];
+  progress: LiHostProgress;
+}
+export interface LiHostScores {
+  jing: number;
+  xu: number;
+  jie: number;
+}
+export interface LiHostResultResp {
+  total: number;
+  grade: string;
+  score_applied: boolean;
+  ru_delta: number;
+  qing_delta: number;
+  li_delta: number;
+  xp_delta: number;
+  new_unlocked_refs: LiHostRefBrief[];
+  scenario_ref: LiHostRefBrief | null;
+  progress: LiHostProgress;
+}
+
 // ── 书艺游戏 ───────────────────────────────────────────────────
 export interface ShuCardOption {
   key: string;

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..db import get_db
-from ..models import LiChoice, LiScenario, Passage, User
+from ..models import LiChoice, LiHostRound, LiScenario, Passage, User
 from ..services.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/li", tags=["li-game"])
@@ -180,6 +180,167 @@ def choose(
         "chosen": _option_full(chosen, db),
         "all_options": [_option_full(o, db) for o in (s.options or [])],
         "new_unlocked_refs": new_unlocked,
+        "progress": {
+            "ru_score": user.ru_score or 0,
+            "qing_score": user.qing_score or 0,
+            "liuyi_li": (user.liuyi or {}).get("li", 0),
+            "unlocked_count": len(user.li_unlocked_refs or []),
+        },
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 「执礼 · 宾至如归」— 宾主雅集玩法
+# 三维评分：敬（揖礼深浅命中）/ 序（迎宾顺序 + 席位）/ 节（席间时机 + 克己）
+# 总分 = 几何平均；玩法数据（宾客/事件）在前端，后端负责计分入账与经典解锁
+# ─────────────────────────────────────────────────────────────────────────────
+
+HOST_SCENARIOS: dict[str, dict] = {
+    "xiangyin":     {"order": 1, "title": "乡饮酒礼", "ref_id": "liji.xiangyinjiuyi.1"},
+    "shixiangjian": {"order": 2, "title": "士相见礼", "ref_id": "liji.quli.zunren"},
+    "jiayan":       {"order": 3, "title": "家宴",     "ref_id": "lunyu.weizheng.2.8"},
+    "yuanke":       {"order": 4, "title": "待远客",   "ref_id": "lunyu.xueer.1.1"},
+    "dashe":        {"order": 5, "title": "大射前宴", "ref_id": "liji.sheyi.1"},
+}
+
+UNLOCK_THRESHOLD = 55   # 总分达到即解锁该场景经典
+
+
+def _host_ref(db: Session, ref_id: str) -> Optional[dict]:
+    p = db.get(Passage, ref_id)
+    if not p:
+        return None
+    return {"ref_id": p.id, "ref_label": p.ref_label or p.id, "text": p.original_text}
+
+
+def _host_grade(total: int) -> str:
+    if total >= 90:
+        return "礼之大成"
+    if total >= 75:
+        return "君子儒"
+    if total >= 60:
+        return "守礼君子"
+    if total >= 40:
+        return "通情达人"
+    return "习礼者"
+
+
+@router.get("/host/today")
+def host_today(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """5 个宾主场景的个人状态（今日是否已计分 / 历史最佳 / 解锁情况）。"""
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    rounds = db.execute(
+        select(LiHostRound).where(LiHostRound.user_id == user.id)
+    ).scalars().all()
+    unlocked_pool = set(user.li_unlocked_refs or [])
+
+    items = []
+    for key, cfg in sorted(HOST_SCENARIOS.items(), key=lambda kv: kv[1]["order"]):
+        mine = [r for r in rounds if r.scenario_key == key]
+        best = max((r.total for r in mine), default=None)
+        best_grade = _host_grade(best) if best is not None else None
+        items.append({
+            "key": key,
+            "title": cfg["title"],
+            "played_today": any(r.created_at >= today_start for r in mine),
+            "plays": len(mine),
+            "best_total": best,
+            "best_grade": best_grade,
+            "ref_id": cfg["ref_id"],
+            "ref_unlocked": cfg["ref_id"] in unlocked_pool,
+        })
+
+    return {
+        "scenarios": items,
+        "progress": {
+            "ru_score": user.ru_score or 0,
+            "qing_score": user.qing_score or 0,
+            "liuyi_li": (user.liuyi or {}).get("li", 0),
+            "unlocked_count": len(unlocked_pool),
+        },
+    }
+
+
+class HostResultIn(BaseModel):
+    jing: int = 0   # 敬 0-100
+    xu: int = 0     # 序 0-100
+    jie: int = 0    # 节 0-100
+
+
+@router.post("/host/{key}/result")
+def host_result(
+    key: str,
+    body: HostResultIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """一局结算：几何平均 → 五品 → 计分入账 + 经典解锁。同场景每日只计一次分。"""
+    cfg = HOST_SCENARIOS.get(key)
+    if not cfg:
+        raise HTTPException(404, f"unknown host scenario: {key}")
+    jing = max(0, min(100, body.jing))
+    xu = max(0, min(100, body.xu))
+    jie = max(0, min(100, body.jie))
+    total = round((max(jing, 1) * max(xu, 1) * max(jie, 1)) ** (1 / 3))
+    grade = _host_grade(total)
+
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    already_today = db.execute(
+        select(LiHostRound).where(
+            LiHostRound.user_id == user.id,
+            LiHostRound.scenario_key == key,
+            LiHostRound.created_at >= today_start,
+        )
+    ).scalars().first()
+
+    score_applied = False
+    ru_delta = qing_delta = li_delta = xp_delta = 0
+    new_unlocked = []
+
+    if not already_today:
+        score_applied = True
+        # 敬+序 → 儒分（规范面），节 → 情分（体察克己面）
+        ru_delta = round((jing + xu) / 2 / 20)      # 0-5
+        qing_delta = round(jie / 20)                # 0-5
+        li_delta = 2 + (total >= 40) + (total >= 60) + (total >= 75) + (total >= 90) * 2  # 2-6
+        xp_delta = li_delta + 2
+        user.ru_score = (user.ru_score or 0) + ru_delta
+        user.qing_score = (user.qing_score or 0) + qing_delta
+        liuyi = dict(user.liuyi or {})
+        liuyi["li"] = min(100, liuyi.get("li", 0) + li_delta)
+        user.liuyi = liuyi
+        flag_modified(user, "liuyi")
+        user.xp = (user.xp or 0) + xp_delta
+        # 解锁经典
+        if total >= UNLOCK_THRESHOLD:
+            unlocked = list(user.li_unlocked_refs or [])
+            if cfg["ref_id"] not in unlocked:
+                unlocked.append(cfg["ref_id"])
+                new_unlocked.append(cfg["ref_id"])
+                user.li_unlocked_refs = unlocked
+                flag_modified(user, "li_unlocked_refs")
+
+    db.add(LiHostRound(
+        user_id=user.id, scenario_key=key,
+        jing=jing, xu=xu, jie=jie, total=total, grade=grade,
+    ))
+    db.commit()
+    db.refresh(user)
+
+    ref = _host_ref(db, cfg["ref_id"])
+    return {
+        "total": total,
+        "grade": grade,
+        "score_applied": score_applied,
+        "ru_delta": ru_delta,
+        "qing_delta": qing_delta,
+        "li_delta": li_delta,
+        "xp_delta": xp_delta,
+        "new_unlocked_refs": [r for r in (_host_ref(db, rid) for rid in new_unlocked) if r],
+        "scenario_ref": ref,
         "progress": {
             "ru_score": user.ru_score or 0,
             "qing_score": user.qing_score or 0,

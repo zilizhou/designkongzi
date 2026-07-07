@@ -134,6 +134,13 @@ export const chooseLiOption = (sid: number, optionKey: string) =>
     method: "POST",
     body: JSON.stringify({ option_key: optionKey }),
   });
+export const getLiHostToday = () =>
+  authJSON<import("./types").LiHostTodayResp>("/api/v1/li/host/today");
+export const submitLiHostResult = (key: string, scores: import("./types").LiHostScores) =>
+  authJSON<import("./types").LiHostResultResp>(`/api/v1/li/host/${key}/result`, {
+    method: "POST",
+    body: JSON.stringify(scores),
+  });
 
 // ── 书艺游戏 ───────────────────────────────────────────────────
 export const getShuToday = () =>
