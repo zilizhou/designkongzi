@@ -160,35 +160,35 @@ function HubView({
       </div>
 
       {/* 修行场 hub */}
-      <section className="relative overflow-hidden rounded-xl border border-line bg-gradient-to-br from-[#2a1810] via-[#3d2817] to-[#1a1208] p-5 text-[#fdf6e3]">
-        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#993C1D]/20 blur-2xl" />
+      <section className="relative overflow-hidden rounded-xl border border-line bg-gradient-to-br from-[#5c5046] via-[#7a6b5c] to-[#4a4038] p-5 text-[#f5efe6]">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-accent/15 blur-2xl" />
         <div className="relative flex flex-wrap items-end gap-4">
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-[#fde68a]/70">礼部修行场</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#e8b87a]/80">礼部修行场</div>
             <div className="font-serif text-3xl">执礼 · 宾至如归</div>
-            <div className="mt-1 text-xs text-white/60">第一人称 3D 宾主厅 · 揖礼有深浅 · 席位有尊卑 · 席间有时机</div>
+            <div className="mt-1 text-xs text-[#f5efe6]/65">第一人称 3D 宾主厅 · 揖礼有深浅 · 席位有尊卑 · 席间有时机</div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-center">
               <svg viewBox="0 0 36 36" className="h-14 w-14 -rotate-90">
                 <circle cx="18" cy="18" r="15" fill="none" stroke="#ffffff22" strokeWidth="3" />
                 <circle
-                  cx="18" cy="18" r="15" fill="none" stroke="#fde68a" strokeWidth="3"
+                  cx="18" cy="18" r="15" fill="none" stroke="#e8b87a" strokeWidth="3"
                   strokeDasharray={`${liScore * 0.94} 100`}
                   strokeLinecap="round"
                 />
               </svg>
-              <div className="mt-1 text-[10px] text-[#fde68a]">六艺·礼 {liScore}</div>
+              <div className="mt-1 text-[10px] text-[#e8b87a]">六艺·礼 {liScore}</div>
             </div>
             {today && (
               <div className="space-y-1 text-right text-xs">
-                <div>儒分 <span className="font-serif text-base text-[#fde68a]">{today.progress.ru_score}</span></div>
-                <div>情分 <span className="font-serif text-base text-[#fde68a]">{today.progress.qing_score}</span></div>
+                <div>儒分 <span className="font-serif text-base text-[#e8b87a]">{today.progress.ru_score}</span></div>
+                <div>情分 <span className="font-serif text-base text-[#e8b87a]">{today.progress.qing_score}</span></div>
               </div>
             )}
           </div>
         </div>
-        <p className="relative mt-3 max-w-2xl text-sm leading-relaxed text-white/75">
+        <p className="relative mt-3 max-w-2xl text-sm leading-relaxed text-[#f5efe6]/75">
           站在宾主厅中，对面就是宾客。按住作揖感受深浅，安排尊卑位次，在全场气氛里把握照应时机——
           无事频扰，反失于「节」。
         </p>

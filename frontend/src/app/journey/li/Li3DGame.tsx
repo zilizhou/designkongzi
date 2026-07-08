@@ -27,6 +27,23 @@ import {
   scoreSeats,
 } from "./liHostLogic";
 
+/** 宾主厅视觉：纸壁 · 木构 · 席地 · 灯笼暖光（与平台朱砂主色呼应） */
+const PAL = {
+  sky: "#d8d2c8",
+  fog: "#c9c0b4",
+  paper: "#ebe4d8",
+  wood: "#5c4636",
+  woodDark: "#3f2f24",
+  mat: "#b8a48a",
+  matEdge: "#8f7358",
+  ink: "#2c241c",
+  skin: "#dcc4a8",
+  lantern: "#fff6e8",
+  glow: "#e8b87a",
+  trim: "#993C1D",
+  highlight: "#c45a3a",
+} as const;
+
 type Phase = "intro" | "greet" | "bow" | "seat" | "banquet" | "done";
 type GuestState = LiHostGuestCfg & {
   greeted: boolean;
@@ -260,14 +277,14 @@ export default function Li3DGame({
       </div>
 
       <section
-        className="relative overflow-hidden rounded-2xl border border-line bg-[#1a1208] select-none"
+        className="relative overflow-hidden rounded-2xl border border-line bg-[#d8d2c8] select-none shadow-inner"
         style={{ height: "min(68vh, 520px)", minHeight: 380, touchAction: "none" }}
       >
         <Canvas
-          camera={{ position: [0, 1.62, 2.2], fov: 58, near: 0.1, far: 80 }}
+          camera={{ position: [0, 1.58, 2.6], fov: 52, near: 0.1, far: 80 }}
           dpr={[1, 1.75]}
           onCreated={({ camera }) => {
-            camera.lookAt(0, 1.35, -6);
+            camera.lookAt(0, 1.25, -5.5);
             camera.updateMatrixWorld();
           }}
         >
@@ -291,15 +308,16 @@ export default function Li3DGame({
             ))}
             <SeatMarkers visible={phase === "seat"} count={guests.length} />
             <BowCamera depth={phase === "bow" ? bowDepth : 0} />
+            {phase === "bow" && <BowSleeves depth={bowDepth} />}
           </Suspense>
         </Canvas>
 
         {/* HUD */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent p-3">
+        <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-[#2c241c]/45 to-transparent p-3">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="font-serif text-sm text-[#fde68a]">{scenario.place}</div>
-              <div className="text-[11px] text-white/70">
+              <div className="font-serif text-sm text-[#f5efe6]">{scenario.place}</div>
+              <div className="text-[11px] text-[#f5efe6]/75">
                 {phase === "intro" && "入场"}
                 {phase === "greet" && "一幕 · 迎宾"}
                 {phase === "bow" && "作揖"}
@@ -308,29 +326,29 @@ export default function Li3DGame({
                 {phase === "done" && "礼成"}
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] text-white/60">全场气氛</div>
-              <div className="font-serif text-lg text-[#fde68a]">{atmosphere}</div>
+            <div className="rounded-lg bg-[#2c241c]/55 px-2.5 py-1 text-right backdrop-blur-sm">
+              <div className="text-[10px] text-[#f5efe6]/65">全场气氛</div>
+              <div className="font-serif text-lg text-[#e8b87a]">{atmosphere}</div>
             </div>
           </div>
         </div>
 
         {toast && (
-          <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full bg-black/75 px-4 py-1.5 text-sm text-[#fde68a]">
+          <div className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full border border-[#993C1D]/30 bg-[#2c241c]/80 px-4 py-1.5 text-sm text-[#f5efe6] backdrop-blur-sm">
             {toast}
           </div>
         )}
 
         {/* Phase overlays */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-4 pt-16">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#2c241c]/88 via-[#2c241c]/55 to-transparent p-4 pt-16">
           {phase === "intro" && (
             <div className="mx-auto max-w-md text-center">
-              <p className="text-sm leading-relaxed text-white/90">{scenario.intro}</p>
-              <p className="mt-2 text-xs text-[#fde68a]/90">要诀：{scenario.tip}</p>
+              <p className="text-sm leading-relaxed text-[#f5efe6]/90">{scenario.intro}</p>
+              <p className="mt-2 text-xs text-[#e8b87a]/90">要诀：{scenario.tip}</p>
               <button
                 type="button"
                 onClick={() => setPhase("greet")}
-                className="pointer-events-auto mt-4 w-full rounded-xl bg-accent py-3 text-sm font-medium text-white"
+                className="pointer-events-auto mt-4 w-full rounded-xl bg-accent py-3 text-sm font-medium text-white shadow-md hover:opacity-95"
               >
                 入 场
               </button>
@@ -339,7 +357,7 @@ export default function Li3DGame({
 
           {phase === "greet" && (
             <div>
-              <p className="mb-2 text-center text-xs text-white/80">
+              <p className="mb-2 text-center text-xs text-[#f5efe6]/80">
                 点选此刻最当先迎的宾客（先尊后卑）· 还剩 {remaining.length} 位
               </p>
               <div className="flex flex-wrap justify-center gap-2">
@@ -348,10 +366,10 @@ export default function Li3DGame({
                     key={g.id}
                     type="button"
                     onClick={() => pickGuest(g.id)}
-                    className="pointer-events-auto rounded-lg border border-[#fde68a]/40 bg-black/60 px-3 py-2 text-left text-xs text-white hover:bg-accent/80"
+                    className="pointer-events-auto rounded-lg border border-[#e8b87a]/35 bg-[#f5efe6]/10 px-3 py-2 text-left text-xs text-[#f5efe6] backdrop-blur-sm hover:border-accent hover:bg-accent/80"
                   >
                     <div className="font-medium">{g.name}</div>
-                    <div className="text-[10px] text-white/60">{RANK_META[g.rank].label}</div>
+                    <div className="text-[10px] text-[#f5efe6]/60">{RANK_META[g.rank].label}</div>
                   </button>
                 ))}
               </div>
@@ -360,26 +378,26 @@ export default function Li3DGame({
 
           {phase === "bow" && focusGuest && (
             <div className="mx-auto max-w-sm">
-              <p className="text-center text-xs text-white/80">
+              <p className="text-center text-xs text-[#f5efe6]/80">
                 向{RANK_META[focusGuest.rank].label} {focusGuest.name} 行揖礼
               </p>
-              <p className="mt-1 text-center text-[10px] text-[#fde68a]/80">{focusGuest.note}</p>
-              <div className="relative mx-auto mt-3 h-3 w-full overflow-hidden rounded-full bg-white/15">
+              <p className="mt-1 text-center text-[10px] text-[#e8b87a]/85">{focusGuest.note}</p>
+              <div className="relative mx-auto mt-3 h-3 w-full overflow-hidden rounded-full bg-[#f5efe6]/15">
                 <div
-                  className="absolute inset-y-0 rounded-full bg-accent transition-[left] duration-75"
+                  className="absolute inset-y-0 rounded-full bg-accent/70 transition-[left] duration-75"
                   style={{
                     left: `${Math.max(0, (RANK_META[focusGuest.rank].depth - (focusGuest.zoneW ?? scenario.zoneW)) * 100)}%`,
                     width: `${(focusGuest.zoneW ?? scenario.zoneW) * 200}%`,
                   }}
                 />
                 <div
-                  className="absolute top-0 h-full w-1 bg-white shadow"
+                  className="absolute top-0 h-full w-1 bg-[#f5efe6] shadow"
                   style={{ left: `${bowDepth * 100}%` }}
                 />
               </div>
               <button
                 type="button"
-                className="pointer-events-auto mt-3 w-full rounded-xl bg-accent py-3 text-sm font-medium text-white active:scale-[0.98]"
+                className="pointer-events-auto mt-3 w-full rounded-xl bg-accent py-3 text-sm font-medium text-white shadow-md active:scale-[0.98]"
                 onPointerDown={() => setCharging(true)}
                 onPointerUp={releaseBow}
                 onPointerLeave={() => charging && releaseBow()}
@@ -391,8 +409,8 @@ export default function Li3DGame({
 
           {phase === "seat" && seatTarget && (
             <div>
-              <p className="mb-2 text-center text-xs text-white/80">
-                为 <span className="text-[#fde68a]">{seatTarget.name}</span> 安排席位
+              <p className="mb-2 text-center text-xs text-[#f5efe6]/80">
+                为 <span className="text-[#e8b87a]">{seatTarget.name}</span> 安排席位
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {SEAT_NAMES.slice(0, guests.length).map((name, idx) => (
@@ -401,7 +419,7 @@ export default function Li3DGame({
                     type="button"
                     onClick={() => assignSeat(idx)}
                     disabled={Object.values(assignments).includes(idx)}
-                    className="pointer-events-auto rounded-lg border border-white/25 bg-black/50 px-4 py-2 text-xs text-white disabled:opacity-40 hover:bg-accent/70"
+                    className="pointer-events-auto rounded-lg border border-[#f5efe6]/25 bg-[#f5efe6]/10 px-4 py-2 text-xs text-[#f5efe6] backdrop-blur-sm disabled:opacity-40 hover:border-accent hover:bg-accent/70"
                   >
                     {name}
                   </button>
@@ -412,7 +430,7 @@ export default function Li3DGame({
 
           {phase === "banquet" && (
             <div>
-              <p className="mb-2 text-center text-xs text-white/80">
+              <p className="mb-2 text-center text-xs text-[#f5efe6]/80">
                 金色时机内点按有需求的宾客；无事频扰反失「节」
               </p>
               <div className="flex flex-wrap justify-center gap-2">
@@ -425,12 +443,12 @@ export default function Li3DGame({
                       key={g.id}
                       type="button"
                       onClick={() => tapGuestBanquet(g.id)}
-                      className={`pointer-events-auto rounded-lg border px-3 py-2 text-xs ${
+                      className={`pointer-events-auto rounded-lg border px-3 py-2 text-xs backdrop-blur-sm ${
                         ev
                           ? inWin
-                            ? "border-[#fde68a] bg-[#fde68a]/20 text-[#fde68a]"
-                            : "border-accent bg-accent/30 text-white animate-pulse"
-                          : "border-white/20 bg-black/40 text-white/70"
+                            ? "border-[#e8b87a] bg-[#e8b87a]/20 text-[#f5efe6]"
+                            : "border-accent bg-accent/35 text-[#f5efe6] animate-pulse"
+                          : "border-[#f5efe6]/20 bg-[#f5efe6]/8 text-[#f5efe6]/75"
                       }`}
                     >
                       {ev ? `${ev.cfg.icon} ${ev.cfg.label}` : g.name.slice(0, 4)}
@@ -442,7 +460,7 @@ export default function Li3DGame({
           )}
 
           {phase === "done" && (
-            <p className="text-center font-serif text-lg text-[#fde68a]">宾主尽欢 · 礼成</p>
+            <p className="text-center font-serif text-lg text-[#e8b87a]">宾主尽欢 · 礼成</p>
           )}
         </div>
       </section>
@@ -452,40 +470,128 @@ export default function Li3DGame({
 
 function HallScene({ atmosphere }: { atmosphere: number }) {
   const warm = atmosphere / 100;
+  const lanternIntensity = 0.55 + warm * 0.35;
+
   return (
     <>
-      <color attach="background" args={[`rgb(${Math.round(20 + warm * 30)},${Math.round(12 + warm * 8)},${Math.round(6 + warm * 4)})`]} />
-      <fog attach="fog" args={["#1a1208", 8, 28]} />
-      <ambientLight intensity={0.35 + warm * 0.25} color="#ffedd5" />
-      <pointLight position={[0, 3.5, -2]} intensity={0.8 + warm * 0.4} color="#fde68a" distance={14} />
-      <pointLight position={[-4, 2.5, -5]} intensity={0.35} color="#993c1d" distance={10} />
-      <pointLight position={[4, 2.5, -5]} intensity={0.35} color="#993c1d" distance={10} />
-      {/* 地面 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -2]} receiveShadow>
-        <planeGeometry args={[18, 18]} />
-        <meshStandardMaterial color="#3d2b1a" roughness={0.9} />
+      <color attach="background" args={[PAL.sky]} />
+      <fog attach="fog" args={[PAL.fog, 10, 32]} />
+      <hemisphereLight args={[PAL.sky, PAL.mat, 0.55 + warm * 0.15]} />
+      <directionalLight position={[4, 9, 3]} intensity={0.45 + warm * 0.15} color="#fff8ef" />
+      <pointLight position={[-2.2, 3.1, -1.5]} intensity={lanternIntensity} color={PAL.glow} distance={11} decay={2} />
+      <pointLight position={[2.2, 3.1, -1.5]} intensity={lanternIntensity} color={PAL.glow} distance={11} decay={2} />
+      <pointLight position={[0, 2.4, -4.8]} intensity={0.25 + warm * 0.2} color="#ffd8a8" distance={8} decay={2} />
+
+      {/* 木地板 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -2.5]} receiveShadow>
+        <planeGeometry args={[20, 20]} />
+        <meshStandardMaterial color={PAL.woodDark} roughness={0.92} metalness={0.02} />
       </mesh>
-      {/* 席地 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -3.5]}>
-        <circleGeometry args={[3.2, 48]} />
-        <meshStandardMaterial color="#5c4030" roughness={0.85} />
+      {/* 席地圆毯 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, -3.6]}>
+        <circleGeometry args={[3.45, 64]} />
+        <meshStandardMaterial color={PAL.mat} roughness={0.95} />
       </mesh>
-      {/* 案几 */}
-      <mesh position={[0, 0.45, -4.2]}>
-        <boxGeometry args={[2.8, 0.12, 1.4]} />
-        <meshStandardMaterial color="#6b4423" />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.018, -3.6]}>
+        <ringGeometry args={[3.15, 3.45, 64]} />
+        <meshStandardMaterial color={PAL.matEdge} roughness={0.9} />
       </mesh>
-      {/* 后墙屏风 */}
-      <mesh position={[0, 2.2, -8]}>
-        <boxGeometry args={[10, 4.2, 0.2]} />
-        <meshStandardMaterial color="#2a1810" />
-      </mesh>
-      {[ -3.5, -1.2, 1.2, 3.5 ].map((x) => (
-        <mesh key={x} position={[x, 2.2, -7.85]}>
-          <boxGeometry args={[1.6, 3.2, 0.08]} />
-          <meshStandardMaterial color="#854f0b" opacity={0.85} transparent />
+
+      {/* 四根立柱 */}
+      {([-4.2, 4.2] as const).flatMap((x) =>
+        [-1.2, -6.5].map((z) => (
+          <group key={`${x}-${z}`} position={[x, 0, z]}>
+            <mesh position={[0, 1.35, 0]}>
+              <cylinderGeometry args={[0.14, 0.16, 2.7, 12]} />
+              <meshStandardMaterial color={PAL.wood} roughness={0.78} />
+            </mesh>
+            <mesh position={[0, 2.72, 0]}>
+              <boxGeometry args={[0.38, 0.12, 0.38]} />
+              <meshStandardMaterial color={PAL.trim} roughness={0.65} />
+            </mesh>
+          </group>
+        )),
+      )}
+
+      {/* 横梁 */}
+      {[-1.2, -6.5].map((z) => (
+        <mesh key={`beam-${z}`} position={[0, 2.75, z]}>
+          <boxGeometry args={[8.8, 0.14, 0.22]} />
+          <meshStandardMaterial color={PAL.woodDark} roughness={0.82} />
         </mesh>
       ))}
+
+      {/* 纸壁 + 后墙 */}
+      <mesh position={[0, 2.1, -7.8]}>
+        <boxGeometry args={[10.5, 4.4, 0.12]} />
+        <meshStandardMaterial color={PAL.paper} roughness={0.98} />
+      </mesh>
+      <mesh position={[-5.1, 2.1, -3.5]}>
+        <boxGeometry args={[0.12, 4.4, 9]} />
+        <meshStandardMaterial color={PAL.paper} roughness={0.98} />
+      </mesh>
+      <mesh position={[5.1, 2.1, -3.5]}>
+        <boxGeometry args={[0.12, 4.4, 9]} />
+        <meshStandardMaterial color={PAL.paper} roughness={0.98} />
+      </mesh>
+
+      {/* 屏风：三扇 + 朱砂边 */}
+      {[-2.4, 0, 2.4].map((x) => (
+        <group key={`screen-${x}`} position={[x, 0, -7.65]}>
+          <mesh position={[0, 1.55, 0]}>
+            <boxGeometry args={[1.85, 3.1, 0.06]} />
+            <meshStandardMaterial color={PAL.paper} roughness={0.96} />
+          </mesh>
+          <mesh position={[0, 1.55, 0.04]}>
+            <boxGeometry args={[1.65, 2.7, 0.02]} />
+            <meshStandardMaterial color="#d4c4ae" roughness={1} />
+          </mesh>
+          <mesh position={[0, 0.18, 0]}>
+            <boxGeometry args={[1.9, 0.08, 0.12]} />
+            <meshStandardMaterial color={PAL.woodDark} roughness={0.85} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 低案几 + 酒器 */}
+      <group position={[0, 0, -4.35]}>
+        <mesh position={[0, 0.38, 0]}>
+          <boxGeometry args={[2.6, 0.1, 1.2]} />
+          <meshStandardMaterial color={PAL.wood} roughness={0.72} />
+        </mesh>
+        {[-0.9, 0.9].map((x) => (
+          <mesh key={x} position={[x, 0.18, 0.35]}>
+            <boxGeometry args={[0.1, 0.36, 0.1]} />
+            <meshStandardMaterial color={PAL.woodDark} roughness={0.8} />
+          </mesh>
+        ))}
+        {[-0.55, 0, 0.55].map((x) => (
+          <mesh key={`cup-${x}`} position={[x, 0.48, 0]}>
+            <cylinderGeometry args={[0.06, 0.05, 0.12, 10]} />
+            <meshStandardMaterial color="#8b4513" roughness={0.55} metalness={0.15} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* 灯笼 */}
+      {[-2.2, 2.2].map((x) => (
+        <group key={`lantern-${x}`} position={[x, 2.95, -1.5]}>
+          <mesh>
+            <cylinderGeometry args={[0.22, 0.28, 0.55, 12, 1, true]} />
+            <meshStandardMaterial color={PAL.lantern} emissive={PAL.glow} emissiveIntensity={0.15 + warm * 0.12} roughness={0.9} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0, -0.34, 0]}>
+            <sphereGeometry args={[0.05, 8, 8]} />
+            <meshStandardMaterial color={PAL.trim} roughness={0.5} metalness={0.2} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 门槛 / 前阶 */}
+      <mesh position={[0, 0.06, 1.2]}>
+        <boxGeometry args={[6.5, 0.12, 0.35]} />
+        <meshStandardMaterial color={PAL.wood} roughness={0.8} />
+      </mesh>
     </>
   );
 }
@@ -506,6 +612,7 @@ function GuestFigure({
   seated: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
+  const upper = useRef<THREE.Group>(null);
   const meta = RANK_META[guest.rank];
 
   const pos = useMemo(() => {
@@ -518,35 +625,119 @@ function GuestFigure({
     return new THREE.Vector3(spread, 0, -5.5);
   }, [index, total, seated, guest.seatIdx]);
 
+  const robe = useMemo(() => new THREE.MeshStandardMaterial({
+    color: meta.hex,
+    roughness: 0.82,
+    metalness: 0.03,
+    emissive: highlighted ? PAL.highlight : "#000000",
+    emissiveIntensity: highlighted ? 0.08 : 0,
+  }), [meta.hex, highlighted]);
+
+  const trim = useMemo(() => new THREE.MeshStandardMaterial({
+    color: guest.rank === "honored" ? "#c9a227" : PAL.trim,
+    roughness: 0.55,
+    metalness: 0.12,
+  }), [guest.rank]);
+
   useFrame((_, dt) => {
     if (!group.current) return;
     group.current.position.lerp(pos, 1 - Math.exp(-4 * dt));
-    if (guest.bowFlash > 0) {
-      group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, -0.35 * guest.bowFlash, 0.12);
-    } else {
-      group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, 0, 0.08);
-    }
-    const bob = Math.sin(performance.now() / 900 + index) * 0.02;
+    const bob = Math.sin(performance.now() / 900 + index) * 0.012;
     group.current.position.y = bob;
+
+    const bowT = guest.bowFlash > 0 ? 0.38 * guest.bowFlash : 0;
+    if (upper.current) {
+      upper.current.rotation.x = THREE.MathUtils.lerp(upper.current.rotation.x, -bowT, 0.14);
+    }
+    group.current.rotation.y = THREE.MathUtils.lerp(
+      group.current.rotation.y,
+      seated ? Math.atan2(-group.current.position.x, 4) : 0,
+      0.06,
+    );
   });
 
-  const scale = highlighted ? 1.08 : 1;
-  const emissive = highlighted ? 0.35 : guest.mood > 0 ? 0.15 : 0;
-
   return (
-    <group ref={group} position={pos.toArray()} scale={scale}>
-      <mesh position={[0, 0.95, 0]}>
-        <capsuleGeometry args={[0.22, 0.65, 4, 8]} />
-        <meshStandardMaterial color={meta.hex} emissive={meta.hex} emissiveIntensity={emissive} />
+    <group ref={group} position={pos.toArray()}>
+      {/* 脚下光晕 */}
+      {highlighted && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+          <ringGeometry args={[0.42, 0.62, 32]} />
+          <meshBasicMaterial color={PAL.glow} transparent opacity={0.55} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* 坐席蒲团 */}
+      {seated && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+          <circleGeometry args={[0.55, 24]} />
+          <meshStandardMaterial color={PAL.matEdge} roughness={0.95} />
+        </mesh>
+      )}
+
+      {/* 袍裙 */}
+      <mesh position={[0, 0.52, 0]} material={robe}>
+        <cylinderGeometry args={[0.28, 0.46, 1.05, 10]} />
       </mesh>
-      <mesh position={[0, 1.55, 0]}>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshStandardMaterial color="#f6d4b8" />
+      {/* 腰带 */}
+      <mesh position={[0, 0.92, 0.02]} material={trim}>
+        <boxGeometry args={[0.52, 0.08, 0.24]} />
       </mesh>
-      {(phase === "banquet" || phase === "greet") && highlighted && (
-        <mesh position={[0, 2.1, 0]}>
-          <ringGeometry args={[0.28, 0.38, 24]} />
-          <meshBasicMaterial color="#fde68a" transparent opacity={0.85} side={THREE.DoubleSide} />
+
+      <group ref={upper}>
+        {/* 上身 */}
+        <mesh position={[0, 1.18, 0]} material={robe}>
+          <boxGeometry args={[0.48, 0.42, 0.22]} />
+        </mesh>
+        {/* 广袖 */}
+        <mesh position={[-0.38, 1.08, 0.04]} rotation={[0, 0, 0.22]} material={robe}>
+          <boxGeometry args={[0.32, 0.1, 0.2]} />
+        </mesh>
+        <mesh position={[0.38, 1.08, 0.04]} rotation={[0, 0, -0.22]} material={robe}>
+          <boxGeometry args={[0.32, 0.1, 0.2]} />
+        </mesh>
+        {/* 交叠双手 */}
+        <mesh position={[0, 0.98, 0.14]}>
+          <boxGeometry args={[0.18, 0.08, 0.1]} />
+          <meshStandardMaterial color={PAL.skin} roughness={0.85} />
+        </mesh>
+        {/* 头 */}
+        <mesh position={[0, 1.52, 0]}>
+          <sphereGeometry args={[0.16, 16, 16]} />
+          <meshStandardMaterial color={PAL.skin} roughness={0.88} />
+        </mesh>
+        {/* 冠 / 巾 */}
+        {guest.rank === "honored" && (
+          <mesh position={[0, 1.68, 0]}>
+            <boxGeometry args={[0.34, 0.1, 0.22]} />
+            <meshStandardMaterial color="#2c241c" roughness={0.7} />
+          </mesh>
+        )}
+        {guest.rank === "elder" && (
+          <mesh position={[0, 1.66, -0.02]}>
+            <boxGeometry args={[0.28, 0.06, 0.24]} />
+            <meshStandardMaterial color="#4a3728" roughness={0.75} />
+          </mesh>
+        )}
+        {(guest.rank === "peer" || guest.rank === "junior") && (
+          <mesh position={[0, 1.64, 0]}>
+            <cylinderGeometry args={[0.12, 0.14, 0.08, 10]} />
+            <meshStandardMaterial color="#5c4636" roughness={0.8} />
+          </mesh>
+        )}
+        {/* 长者白须暗示 */}
+        {guest.rank === "elder" && (
+          <mesh position={[0, 1.38, 0.12]}>
+            <boxGeometry args={[0.08, 0.12, 0.04]} />
+            <meshStandardMaterial color="#e8e0d4" roughness={0.95} />
+          </mesh>
+        )}
+      </group>
+
+      {/* 姓名牌（仅高亮时） */}
+      {highlighted && (phase === "greet" || phase === "banquet" || phase === "seat") && (
+        <mesh position={[0, 1.95, 0]}>
+          <planeGeometry args={[0.7, 0.18]} />
+          <meshBasicMaterial color={PAL.ink} transparent opacity={0.72} />
         </mesh>
       )}
     </group>
@@ -559,22 +750,49 @@ function SeatMarkers({ visible, count }: { visible: boolean; count: number }) {
   return (
     <>
       {angles.map((a, i) => (
-        <mesh
-          key={i}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[Math.sin(a) * 2.8, 0.04, -3.8 + Math.cos(a) * 1.2]}
-        >
-          <ringGeometry args={[0.35, 0.55, 32]} />
-          <meshBasicMaterial color="#fde68a" transparent opacity={0.45} side={THREE.DoubleSide} />
-        </mesh>
+        <group key={i} position={[Math.sin(a) * 2.8, 0, -3.8 + Math.cos(a) * 1.2]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]}>
+            <ringGeometry args={[0.38, 0.58, 32]} />
+            <meshBasicMaterial color={PAL.glow} transparent opacity={0.5} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+            <circleGeometry args={[0.36, 24]} />
+            <meshStandardMaterial color={PAL.mat} transparent opacity={0.35} roughness={1} />
+          </mesh>
+        </group>
       ))}
     </>
   );
 }
 
+function BowSleeves({ depth }: { depth: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    ref.current.rotation.x = -depth * 0.55;
+    ref.current.position.y = 0.95 - depth * 0.25;
+  });
+  return (
+    <group ref={ref} position={[0, 0.95, 0.35]}>
+      <mesh position={[-0.28, 0, 0]} rotation={[0.3, 0.15, 0.25]}>
+        <boxGeometry args={[0.22, 0.06, 0.38]} />
+        <meshStandardMaterial color="#4a3728" roughness={0.85} />
+      </mesh>
+      <mesh position={[0.28, 0, 0]} rotation={[0.3, -0.15, -0.25]}>
+        <boxGeometry args={[0.22, 0.06, 0.38]} />
+        <meshStandardMaterial color="#4a3728" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, -0.08, 0.12]}>
+        <boxGeometry args={[0.14, 0.06, 0.1]} />
+        <meshStandardMaterial color={PAL.skin} roughness={0.88} />
+      </mesh>
+    </group>
+  );
+}
+
 function BowCamera({ depth }: { depth: number }) {
   useFrame(({ camera }) => {
-    const target = -depth * 0.42;
+    const target = -depth * 0.38;
     camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, target, 0.14);
   });
   return null;
