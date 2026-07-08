@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/journey", tags=["journey"])
 
 # 六艺顺序固定：礼乐射御书数
 ARTS = [
-    {"key": "li",   "label": "礼", "field": "li",   "subtitle": "情境抉择 · 仁敬",         "color": "#993C1D"},
+    {"key": "li",   "label": "礼", "field": "li",   "subtitle": "3D 宾主厅 · 执礼",         "color": "#993C1D"},
     {"key": "yue",  "label": "乐", "field": "yue",  "subtitle": "五音合鸣 · 和而不同",     "color": "#854F0B"},
     {"key": "she",  "label": "射", "field": "she",  "subtitle": "3D 射场 · 反求诸己",      "color": "#0F6E56"},
     {"key": "yu",   "label": "御", "field": "yu",   "subtitle": "五御之礼 · 礼以行之",     "color": "#534AB7"},

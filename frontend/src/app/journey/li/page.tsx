@@ -1,13 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
-import { getLiHostToday, submitLiHostResult } from "@/lib/api";
-import type { LiHostResultResp, LiHostScores, LiHostStateItem, LiHostTodayResp } from "@/lib/types";
-import LiPhaserGame, { LI_HOST_SCENARIOS, liHostScenario } from "./LiPhaserGame";
-import type { LiHostRoundDetail } from "./LiPhaserGame";
+import { getLiHostLeaderboard, getLiHostToday, submitLiHostResult } from "@/lib/api";
+import type {
+  LiHostLeaderboardResp,
+  LiHostResultResp,
+  LiHostScores,
+  LiHostStateItem,
+  LiHostTodayResp,
+} from "@/lib/types";
+import { LI_HOST_SCENARIOS, liHostScenario } from "./liHostData";
+import type { LiHostRoundDetail } from "./liHostData";
+import { geomTotal } from "./liHostLogic";
 
-type View = "list" | "playing" | "result";
+const Li3DGame = dynamic(() => import("./Li3DGame"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-2xl border border-line bg-surface p-12 text-center">
+      <div className="font-serif text-lg text-fg">礼部修行场准备中…</div>
+      <div className="mt-2 text-xs text-faint">正在加载 3D 宾主厅</div>
+    </div>
+  ),
+});
+
+type View = "hub" | "playing" | "result";
 
 const DIFF_LABEL = ["", "入门", "初阶", "进阶", "高阶", "终局"];
 
@@ -20,16 +38,19 @@ const GRADE_COLOR: Record<string, string> = {
 };
 
 export default function LiGamePage() {
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<View>("hub");
   const [today, setToday] = useState<LiHostTodayResp | null>(null);
-  const [currentKey, setCurrentKey] = useState<string>("");
+  const [board, setBoard] = useState<LiHostLeaderboardResp | null>(null);
+  const [currentKey, setCurrentKey] = useState("");
   const [scores, setScores] = useState<LiHostScores | null>(null);
   const [detail, setDetail] = useState<LiHostRoundDetail | null>(null);
   const [result, setResult] = useState<LiHostResultResp | null>(null);
   const [err, setErr] = useState("");
+  const [shareMsg, setShareMsg] = useState("");
 
   const refresh = useCallback(() => {
     getLiHostToday().then(setToday).catch(() => setErr("无法连接后端"));
+    getLiHostLeaderboard(8).then(setBoard).catch(() => {});
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -39,11 +60,12 @@ export default function LiGamePage() {
     setScores(null);
     setDetail(null);
     setResult(null);
+    setShareMsg("");
     setView("playing");
   };
 
-  const backToList = () => {
-    setView("list");
+  const backToHub = () => {
+    setView("hub");
     setCurrentKey("");
     refresh();
   };
@@ -60,12 +82,24 @@ export default function LiGamePage() {
     }
   };
 
-  if (err && view === "list") {
-    return <div className="rounded-lg bg-accent-soft p-4 text-sm text-accent">{err}</div>;
-  }
+  const shareResult = async () => {
+    if (!scores || !result) return;
+    const cfg = liHostScenario(currentKey);
+    const text = `执礼 · ${cfg.title} — ${result.grade} ${result.total} 分（敬${scores.jing}·序${scores.xu}·节${scores.jie}）`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "执礼 · 宾至如归", text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setShareMsg("成绩已复制到剪贴板");
+      }
+    } catch {
+      setShareMsg("分享已取消");
+    }
+  };
 
   if (view === "playing" && currentKey) {
-    return <LiPhaserGame scenarioKey={currentKey} onExit={backToList} onFinish={handleFinish} />;
+    return <Li3DGame scenarioKey={currentKey} onExit={backToHub} onFinish={handleFinish} />;
   }
 
   if (view === "result" && currentKey && scores && detail) {
@@ -77,25 +111,44 @@ export default function LiGamePage() {
           scores={scores}
           detail={detail}
           result={result}
-          onBack={backToList}
+          shareMsg={shareMsg}
+          onShare={shareResult}
+          onBack={backToHub}
         />
       </div>
     );
   }
 
-  return <ListView today={today} onPlay={play} />;
+  return (
+    <HubView
+      today={today}
+      board={board}
+      err={err}
+      onPlay={play}
+    />
+  );
 }
 
-function ListView({
+function HubView({
   today,
+  board,
+  err,
   onPlay,
 }: {
   today: LiHostTodayResp | null;
+  board: LiHostLeaderboardResp | null;
+  err: string;
   onPlay: (key: string) => void;
 }) {
   const state = new Map<string, LiHostStateItem>(
     (today?.scenarios ?? []).map((s) => [s.key, s]),
   );
+  const liScore = today?.progress.liuyi_li ?? 0;
+
+  if (err) {
+    return <div className="rounded-lg bg-accent-soft p-4 text-sm text-accent">{err}</div>;
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -106,35 +159,54 @@ function ListView({
         <div className="w-16" />
       </div>
 
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <div className="font-serif text-3xl text-fg">执礼 · 宾至如归</div>
-            <div className="mt-1 text-xs text-faint">迎宾有先后 · 揖礼有深浅 · 席位有尊卑 · 应对有时机</div>
+      {/* 修行场 hub */}
+      <section className="relative overflow-hidden rounded-xl border border-line bg-gradient-to-br from-[#2a1810] via-[#3d2817] to-[#1a1208] p-5 text-[#fdf6e3]">
+        <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#993C1D]/20 blur-2xl" />
+        <div className="relative flex flex-wrap items-end gap-4">
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-[#fde68a]/70">礼部修行场</div>
+            <div className="font-serif text-3xl">执礼 · 宾至如归</div>
+            <div className="mt-1 text-xs text-white/60">第一人称 3D 宾主厅 · 揖礼有深浅 · 席位有尊卑 · 席间有时机</div>
           </div>
-          {today && (
-            <div className="ml-auto flex gap-5 text-right">
-              <ScoreBlock label="儒分" value={today.progress.ru_score} color="#993C1D" />
-              <ScoreBlock label="情分" value={today.progress.qing_score} color="#0F6E56" />
-              <ScoreBlock label="六艺·礼" value={today.progress.liuyi_li} color="#854F0B" />
+          <div className="flex items-center gap-4">
+            <div className="text-center">
+              <svg viewBox="0 0 36 36" className="h-14 w-14 -rotate-90">
+                <circle cx="18" cy="18" r="15" fill="none" stroke="#ffffff22" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15" fill="none" stroke="#fde68a" strokeWidth="3"
+                  strokeDasharray={`${liScore * 0.94} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="mt-1 text-[10px] text-[#fde68a]">六艺·礼 {liScore}</div>
             </div>
-          )}
+            {today && (
+              <div className="space-y-1 text-right text-xs">
+                <div>儒分 <span className="font-serif text-base text-[#fde68a]">{today.progress.ru_score}</span></div>
+                <div>情分 <span className="font-serif text-base text-[#fde68a]">{today.progress.qing_score}</span></div>
+              </div>
+            )}
+          </div>
         </div>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-          你是一场雅集的主人。礼不是选择题，而是手上的分寸：作揖过深近谄、过浅近慢；
-          席间照应太急则躁、太慢则怠——而无事频频打扰，恰恰失于「节」。
-          三维评分取几何平均：敬 · 序 · 节，任何一维短了，都成不了礼。
+        <p className="relative mt-3 max-w-2xl text-sm leading-relaxed text-white/75">
+          站在宾主厅中，对面就是宾客。按住作揖感受深浅，安排尊卑位次，在全场气氛里把握照应时机——
+          无事频扰，反失于「节」。
         </p>
       </section>
 
+      {/* 雅集列表 */}
       <section>
-        <div className="mb-2 text-xs text-faint">五场雅集 · 由浅入深</div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-xs text-faint">五场雅集 · 由浅入深</div>
+          <div className="text-[10px] text-faint">敬 · 序 · 节 几何平均计分</div>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {LI_HOST_SCENARIOS.map((cfg) => {
             const st = state.get(cfg.key);
             return (
               <button
                 key={cfg.key}
+                type="button"
                 onClick={() => onPlay(cfg.key)}
                 className="group relative overflow-hidden rounded-lg border border-line bg-surface p-4 text-left transition hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]"
                 style={{ borderLeftWidth: 4, borderLeftColor: "#993C1D" }}
@@ -171,6 +243,38 @@ function ListView({
           })}
         </div>
       </section>
+
+      {/* 排行 */}
+      {board && board.items.length > 0 && (
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <div className="mb-3 flex items-baseline justify-between">
+            <div className="font-serif text-base text-fg">执礼排行</div>
+            <div className="text-[10px] text-faint">{board.note}</div>
+          </div>
+          <div className="space-y-1.5">
+            {board.items.map((it) => (
+              <div
+                key={it.rank}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+                  it.is_self ? "bg-accent-soft text-accent-ink" : "bg-surface-2/40 text-muted"
+                }`}
+              >
+                <span className="w-6 font-serif text-faint">{it.rank}</span>
+                <span className="flex-1 font-medium">{it.name}</span>
+                <span className="font-serif" style={{ color: GRADE_COLOR[it.best_grade] ?? "#6b7280" }}>
+                  {it.best_total}
+                </span>
+                <span className="text-[10px] text-faint">{it.best_grade}</span>
+              </div>
+            ))}
+          </div>
+          {board.self && !board.items.some((i) => i.is_self) && (
+            <div className="mt-2 rounded-lg border border-dashed border-accent/40 px-3 py-2 text-xs text-accent">
+              你的最佳：{board.self.best_total} · {board.self.best_grade}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -180,22 +284,27 @@ function ResultView({
   scores,
   detail,
   result,
+  shareMsg,
+  onShare,
   onBack,
 }: {
   scenarioKey: string;
   scores: LiHostScores;
   detail: LiHostRoundDetail;
   result: LiHostResultResp | null;
+  shareMsg: string;
+  onShare: () => void;
   onBack: () => void;
 }) {
   const cfg = liHostScenario(scenarioKey);
-  const total = result?.total ?? Math.round((Math.max(scores.jing, 1) * Math.max(scores.xu, 1) * Math.max(scores.jie, 1)) ** (1 / 3));
+  const total = result?.total ?? geomTotal(scores);
   const grade = result?.grade ?? "";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-xs text-faint hover:text-accent">
-          ← 回到雅集
+        <button type="button" onClick={onBack} className="text-xs text-faint hover:text-accent">
+          ← 回到修行场
         </button>
         <div className="text-xs text-faint">{cfg.title} · 结算</div>
       </div>
@@ -204,23 +313,24 @@ function ResultView({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-accent">礼成</div>
-            <h2 className="mt-1 font-serif text-2xl text-accent-ink">
-              {grade || "结算中…"}
-            </h2>
+            <h2 className="mt-1 font-serif text-2xl text-accent-ink">{grade || "结算中…"}</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">{cfg.lesson}</p>
+            {detail.highlight && (
+              <p className="mt-2 rounded-lg bg-surface/60 px-3 py-2 text-xs text-accent-ink">{detail.highlight}</p>
+            )}
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-accent">总分（敬·序·节 几何平均）</div>
+            <div className="text-[10px] text-accent">总分 · 全场气氛 {detail.atmosphere}</div>
             <div className="font-serif text-4xl text-accent-ink">{total}</div>
             {result && !result.score_applied && (
-              <div className="mt-1 text-[10px] text-faint">今日此场已计过分，本局不重复入账</div>
+              <div className="mt-1 text-[10px] text-faint">今日此场已计过分</div>
             )}
           </div>
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <Meter label={`敬 · 揖礼深浅`} value={scores.jing} color="#993C1D" />
-          <Meter label={`序 · 先后与位次`} value={scores.xu} color="#854F0B" />
-          <Meter label={`节 · 时机与克己`} value={scores.jie} color="#0F6E56" />
+          <Meter label="敬 · 揖礼深浅" value={scores.jing} color="#993C1D" />
+          <Meter label="序 · 先后与位次" value={scores.xu} color="#854F0B" />
+          <Meter label="节 · 时机与克己" value={scores.jie} color="#0F6E56" />
         </div>
       </section>
 
@@ -228,7 +338,7 @@ function ResultView({
         <div className="rounded-lg border border-line bg-surface p-4">
           <div className="text-[10px] uppercase tracking-[0.18em] text-faint">本局回看</div>
           <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted">
-            <li>迎宾先后：{detail.orderScore} 分 · 席位安排：{detail.seatScore} 分</li>
+            <li>迎宾先后 {detail.orderScore} · 席位 {detail.seatScore}</li>
             {detail.bows.map((b, i) => (
               <li key={`b${i}`}>揖 {b.guest} — {b.verdict}（{b.score}）</li>
             ))}
@@ -236,7 +346,7 @@ function ResultView({
               <li key={`e${i}`}>{e.label} — {e.verdict}（{e.score}）</li>
             ))}
             {detail.overActs > 0 && (
-              <li className="text-accent">殷勤过度 ×{detail.overActs} — 无事频扰，失于节</li>
+              <li className="text-accent">殷勤过度 ×{detail.overActs}</li>
             )}
           </ul>
         </div>
@@ -251,11 +361,6 @@ function ResultView({
           ) : (
             <div className="mt-2 text-xs text-faint">上报中…</div>
           )}
-          <div className="mt-3 text-[10px] uppercase tracking-[0.18em] text-faint">执礼何以为礼</div>
-          <p className="mt-1 text-xs leading-relaxed text-muted">
-            你练的是分寸本身：躬身的深浅、迎送的先后、出手的时机。
-            礼不是外在的规矩表演，而是把「把人放在心上」变成可以拿捏的动作。
-          </p>
         </div>
       </section>
 
@@ -270,15 +375,20 @@ function ResultView({
           ))}
         </section>
       )}
-      {result && result.new_unlocked_refs.length === 0 && result.scenario_ref && total < 55 && (
-        <section className="rounded-lg border border-line bg-surface px-3 py-2 text-xs text-faint">
-          总分达到 55 可解锁本场经典《{result.scenario_ref.ref_label}》——再赴一局试试。
-        </section>
-      )}
 
-      <button onClick={onBack} className="w-full rounded-lg bg-accent py-3 text-sm font-medium text-white">
-        回到雅集
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onShare}
+          className="flex-1 rounded-lg border border-line bg-surface py-3 text-sm text-fg hover:bg-surface-2"
+        >
+          分享成绩
+        </button>
+        <button type="button" onClick={onBack} className="flex-1 rounded-lg bg-accent py-3 text-sm font-medium text-white">
+          回到修行场
+        </button>
+      </div>
+      {shareMsg && <p className="text-center text-xs text-faint">{shareMsg}</p>}
     </div>
   );
 }
@@ -293,15 +403,6 @@ function Meter({ label, value, color }: { label: string; value: number; color: s
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, background: color }} />
       </div>
-    </div>
-  );
-}
-
-function ScoreBlock({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div>
-      <div className="font-serif text-2xl" style={{ color }}>{value}</div>
-      <div className="text-[10px] text-faint">{label}</div>
     </div>
   );
 }

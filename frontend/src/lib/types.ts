@@ -232,6 +232,19 @@ export interface LiHostResultResp {
   scenario_ref: LiHostRefBrief | null;
   progress: LiHostProgress;
 }
+export interface LiHostLeaderboardItem {
+  rank: number;
+  name: string;
+  best_total: number;
+  best_grade: string;
+  plays: number;
+  is_self?: boolean;
+}
+export interface LiHostLeaderboardResp {
+  items: LiHostLeaderboardItem[];
+  self: LiHostLeaderboardItem | null;
+  note: string;
+}
 
 // ── 书艺游戏 ───────────────────────────────────────────────────
 export interface ShuCardOption {

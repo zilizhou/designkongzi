@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -347,6 +347,62 @@ def host_result(
             "liuyi_li": (user.liuyi or {}).get("li", 0),
             "unlocked_count": len(user.li_unlocked_refs or []),
         },
+    }
+
+
+@router.get("/host/leaderboard")
+def host_leaderboard(
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """执礼排行：按历史最高单局总分。同名游客去重，当前用户永远上榜。"""
+    rows = db.execute(
+        select(
+            User.id,
+            User.display_name,
+            User.is_guest,
+            func.max(LiHostRound.total).label("best_total"),
+            func.max(LiHostRound.grade).label("best_grade"),
+            func.count(LiHostRound.id).label("plays"),
+        )
+        .join(LiHostRound, LiHostRound.user_id == User.id)
+        .group_by(User.id)
+        .order_by(func.max(LiHostRound.total).desc())
+    ).all()
+
+    seen_guest: set[str] = set()
+    items = []
+    self_entry = None
+    for r in rows:
+        name = (r.display_name or "君子")[:8]
+        entry = {
+            "name": name,
+            "best_total": int(r.best_total or 0),
+            "best_grade": r.best_grade or "习礼者",
+            "plays": int(r.plays or 0),
+            "is_self": r.id == user.id,
+        }
+        if entry["is_self"]:
+            self_entry = entry
+        if r.is_guest and name in seen_guest and not entry["is_self"]:
+            continue
+        if r.is_guest:
+            seen_guest.add(name)
+        items.append(entry)
+
+    for i, it in enumerate(items):
+        it["rank"] = i + 1
+
+    if self_entry and not any(it["is_self"] for it in items[:limit]):
+        self_rank = next((it for it in items if it.get("is_self")), self_entry)
+    else:
+        self_rank = next((it for it in items if it.get("is_self")), None)
+
+    return {
+        "items": items[:limit],
+        "self": self_rank,
+        "note": "排行按执礼单局最高分",
     }
 
 

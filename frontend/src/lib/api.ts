@@ -141,6 +141,8 @@ export const submitLiHostResult = (key: string, scores: import("./types").LiHost
     method: "POST",
     body: JSON.stringify(scores),
   });
+export const getLiHostLeaderboard = (limit = 10) =>
+  authJSON<import("./types").LiHostLeaderboardResp>(`/api/v1/li/host/leaderboard?limit=${limit}`);
 
 // ── 书艺游戏 ───────────────────────────────────────────────────
 export const getShuToday = () =>
