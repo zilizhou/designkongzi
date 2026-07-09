@@ -166,7 +166,7 @@ function HubView({
           <div className="flex-1">
             <div className="text-[10px] uppercase tracking-[0.2em] text-[#e8b87a]/80">礼部修行场</div>
             <div className="font-serif text-3xl">执礼 · 宾至如归</div>
-            <div className="mt-1 text-xs text-[#f5efe6]/65">第一人称 3D 宾主厅 · 揖礼有深浅 · 席位有尊卑 · 席间有时机</div>
+            <div className="mt-1 text-xs text-[#f5efe6]/65">第三人称漫步庭院 · 走近互动完成三幕礼仪</div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-center">
@@ -189,7 +189,7 @@ function HubView({
           </div>
         </div>
         <p className="relative mt-3 max-w-2xl text-sm leading-relaxed text-[#f5efe6]/75">
-          站在宾主厅中，对面就是宾客。按住作揖感受深浅，安排尊卑位次，在全场气氛里把握照应时机——
+          步入夏日般宁静的宾主院，走近宾客完成揖礼、安席与席间照应——
           无事频扰，反失于「节」。
         </p>
       </section>
