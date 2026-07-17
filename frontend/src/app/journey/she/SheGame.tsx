@@ -372,11 +372,15 @@ export default function SheGame() {
         className="relative select-none overflow-hidden rounded-2xl border border-line"
         style={{ height: "min(64vh, 560px)", minHeight: 380, touchAction: "none" }}
         onPointerDown={(e) => {
+          // 仅在「就绪可拉弓」时接管指针；卡片/按钮阶段不拦截，
+          // 否则 setPointerCapture 会把 click 重定向到本层，按钮全部失效
+          if (phaseRef.current !== "ready") return;
           e.preventDefault();
           e.currentTarget.setPointerCapture?.(e.pointerId);
           beginDraw();
         }}
         onPointerUp={(e) => {
+          if (phaseRef.current !== "draw") return;
           e.preventDefault();
           releaseDraw();
         }}
