@@ -108,6 +108,8 @@ export function ArcheryScene({
 }) {
   const { camera } = useThree();
   const prevOver = useRef(false);
+  // 相机注视点（平滑跟随）：拉弓时随指向轻转，飞/落靶时转向箭的归宿
+  const lookRef = useRef(new THREE.Vector3(0, TARGET_Y, TARGET_Z));
 
   useFrame((state, dtRaw) => {
     const dt = Math.min(0.05, dtRaw);
@@ -141,6 +143,25 @@ export function ArcheryScene({
       cam.fov += (fovT - cam.fov) * Math.min(1, dt * 5);
       cam.updateProjectionMatrix();
     }
+
+    // 相机注视：draw 随指向 45%，fly/mark 随落点 70%，其余回正
+    let lx = 0;
+    let ly = TARGET_Y;
+    if (g.phase === "draw" && g.cross) {
+      const [ax, ay] = impactWorld(g.cross.x, g.cross.y);
+      lx = ax * 0.45;
+      ly = TARGET_Y + (ay - TARGET_Y) * 0.45;
+    } else if (g.phase === "fly" || g.phase === "mark") {
+      const ix = g.flight?.imp.x ?? g.ripple?.x ?? 0;
+      const iy = g.flight?.imp.y ?? g.ripple?.y ?? 0;
+      const [ax, ay] = impactWorld(ix, iy);
+      lx = ax * 0.7;
+      ly = TARGET_Y + (ay - TARGET_Y) * 0.7;
+    }
+    const kk = Math.min(1, dt * 4);
+    lookRef.current.x += (lx - lookRef.current.x) * kk;
+    lookRef.current.y += (ly - lookRef.current.y) * kk;
+    camera.lookAt(lookRef.current.x, lookRef.current.y, TARGET_Z);
 
     // 飞行推进
     if (g.phase === "fly" && g.flight) {
