@@ -31,10 +31,14 @@ import {
   createGameRefs,
   impactWorld,
   type ScenePhase,
+  type StuckArrow,
 } from "./sheScene";
+import AimInset from "./sheAimInset";
 import * as sfx from "./sheAudio";
 
 const ARROWS_PER_SET = 5;
+/** 屏幕边缘 → 瞄准偏移（靶面单位）。指针位置直接映射为指向：屏心 = 靶心 */
+const AIM_RANGE = 1.15;
 
 const REFLECTION_OPTIONS: { key: SheReflection; label: string; hint: string }[] = [
   { key: "calm", label: "心未静，气未沉", hint: "呼吸太快、抢射、未守静" },
@@ -62,6 +66,7 @@ export default function SheGame() {
   const [streakLocal, setStreakLocal] = useState(0);
   const [over, setOver] = useState(false);
   const [callout, setCallout] = useState<{ text: string; sub: string; color: string } | null>(null);
+  const [stuckView, setStuckView] = useState<StuckArrow[]>([]); // 放大靶箭点（镜像 g.stuck）
 
   // 3D 场景共享的可变游戏状态（useFrame 直读，不走 React 渲染）
   const [g] = useState(() => createGameRefs());
@@ -131,6 +136,7 @@ export default function SheGame() {
 
   const restartSet = useCallback(() => {
     g.stuck = [];
+    setStuckView([]);
     setArrowIdx(0);
     setSessionScore(0);
     setSessionHits(0);
@@ -196,7 +202,10 @@ export default function SheGame() {
   // ── 落箭（3D 场景在飞行结束时调用，经 ref 桥接） ──
   const landRef = useRef<(imp: Impact) => void>(() => {});
   landRef.current = (imp: Impact) => {
-    if (imp.score > 0) g.stuck = [...g.stuck, { x: imp.x, y: imp.y, score: imp.score }];
+    if (imp.score > 0) {
+      g.stuck = [...g.stuck, { x: imp.x, y: imp.y, score: imp.score }];
+      setStuckView(g.stuck);
+    }
     g.ripple = {
       x: Math.min(1, Math.max(-1, imp.x)),
       y: Math.min(1.4, Math.max(-1, imp.y)),
@@ -244,7 +253,9 @@ export default function SheGame() {
     if (phaseRef.current !== "draw") return;
     const t = (performance.now() - g.holdT0) / 1000;
     const a = aimAt(t, g.wind, g.seed);
-    const imp = computeImpact(a);
+    // 落点 = 呼吸漂移 + 玩家指向（移动鼠标/手指控制方向）
+    const aim = g.aim ?? { x: 0, y: 0 };
+    const imp = computeImpact({ ...a, swayX: a.swayX + aim.x, swayY: a.swayY + aim.y });
     sfx.stopCreak();
     sfx.release();
     // 起飞点：弓口箭尖；弧线高低随力度（力不足抛物线更高、落得近）
@@ -265,6 +276,20 @@ export default function SheGame() {
     setPhaseBoth("fly");
   }, [g, setPhaseBoth]);
 
+  // 指针位置 → 瞄准偏移（屏心 = 靶心，靶面单位）
+  const aimFromEvent = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const nx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+      const ny = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+      g.aim = {
+        x: Math.max(-AIM_RANGE, Math.min(AIM_RANGE, nx * AIM_RANGE)),
+        y: Math.max(-AIM_RANGE, Math.min(AIM_RANGE, ny * AIM_RANGE)),
+      };
+    },
+    [g],
+  );
+
   // 键盘（空格）— 与指针完全同构；在文本框中不触发
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -272,6 +297,7 @@ export default function SheGame() {
       const el = document.activeElement;
       if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT")) return;
       e.preventDefault();
+      g.aim = { x: 0, y: 0 }; // 键盘无指向，从屏心开始
       beginDraw();
     };
     const up = (e: KeyboardEvent) => {
@@ -285,7 +311,7 @@ export default function SheGame() {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [beginDraw, releaseDraw]);
+  }, [beginDraw, releaseDraw, g]);
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -319,7 +345,7 @@ export default function SheGame() {
           <div>
             <div className="text-xs tracking-widest text-accent">六艺 · 射</div>
             <div className="font-serif text-xl text-fg">观德 · 反求诸己</div>
-            <div className="mt-1 text-xs text-muted">按住拉弓 · 松开放箭 — 时机 × 力度</div>
+            <div className="mt-1 text-xs text-muted">按住拉弓 · 移动瞄准 · 松开放箭 — 方向 × 力度 × 时机</div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
             {progress && <Stat label="称号" value={progress.title} />}
@@ -377,7 +403,12 @@ export default function SheGame() {
           if (phaseRef.current !== "ready") return;
           e.preventDefault();
           e.currentTarget.setPointerCapture?.(e.pointerId);
+          aimFromEvent(e); // 按下位置即初始指向
           beginDraw();
+        }}
+        onPointerMove={(e) => {
+          if (phaseRef.current !== "draw") return;
+          aimFromEvent(e); // 按住后移动 = 调整方向
         }}
         onPointerUp={(e) => {
           if (phaseRef.current !== "draw") return;
@@ -395,14 +426,17 @@ export default function SheGame() {
           <ArcheryScene g={g} landRef={landRef} onOver={setOver} />
         </Canvas>
 
+        {/* 放大靶 + 力度环（辅助瞄准） */}
+        <AimInset g={g} stuck={stuckView} over={over} />
+
         {/* 首次引导 */}
         {coach && phase === "ready" && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="rounded-2xl bg-black/60 px-6 py-5 text-center text-white backdrop-blur">
-              <div className="font-serif text-2xl">按住 · 松开</div>
+              <div className="font-serif text-2xl">按住 · 移动 · 松开</div>
               <div className="mt-2 text-xs leading-relaxed opacity-80">
-                按住屏幕任意处拉弓，准星随呼吸漂移<br />
-                稳住 1 秒最准 · 拉满太久会手抖 · 留意风向旗
+                按住屏幕任意处拉弓，<b>移动手指/鼠标瞄准</b><br />
+                右上角放大靶看准星 · 力度进金区最稳 · 拉满太久会手抖
               </div>
             </div>
           </div>
@@ -427,7 +461,7 @@ export default function SheGame() {
         <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
           <div className="rounded-full bg-black/55 px-4 py-1.5 text-[11px] text-white backdrop-blur">
             {phase === "ready" && (round ? "按住任意处 · 拉弓" : "连接射场中…")}
-            {phase === "draw" && (over ? "过满则抖 — 快放！" : "稳住呼吸 · 松开放箭")}
+            {phase === "draw" && (over ? "过满则抖 — 快放！" : "移动瞄准 · 力度进金区松手")}
             {phase === "fly" && "箭出 · 看其所至"}
             {phase === "mark" && (resultMsg || "…")}
             {phase === "summary" && "五矢已毕"}

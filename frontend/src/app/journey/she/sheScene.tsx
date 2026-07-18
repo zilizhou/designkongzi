@@ -34,6 +34,7 @@ export interface GameRefs {
   holdT0: number;
   seed: number;
   cross: { x: number; y: number } | null;
+  aim: { x: number; y: number } | null; // 玩家指向偏移（靶面单位，移动鼠标/手指控制）
   amp: number;
   power: number;
   over: boolean;
@@ -51,6 +52,7 @@ export function createGameRefs(): GameRefs {
     holdT0: 0,
     seed: 1,
     cross: null,
+    aim: null,
     amp: 0.5,
     power: 0,
     over: false,
@@ -114,7 +116,8 @@ export function ArcheryScene({
     if (g.phase === "draw") {
       const t = (now - g.holdT0) / 1000;
       const a = aimAt(t, g.wind, g.seed);
-      g.cross = { x: a.swayX, y: a.swayY };
+      // 准星 = 呼吸漂移 + 玩家指向（移动鼠标/手指）
+      g.cross = { x: a.swayX + (g.aim?.x ?? 0), y: a.swayY + (g.aim?.y ?? 0) };
       g.amp = a.amp;
       g.power = a.power;
       g.over = a.over;
