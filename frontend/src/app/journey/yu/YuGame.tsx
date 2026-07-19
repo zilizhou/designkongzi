@@ -220,7 +220,10 @@ export default function YuGame() {
                 <span className="font-serif text-lg" style={{ color: KIND_COLOR[s.kind] ?? "#2b2925" }}>
                   {s.title}
                 </span>
-                {s.answered && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-muted">已驭过</span>}
+                <span className="flex gap-1">
+                  {s.done_today && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">今日已评</span>}
+                  {s.answered && !s.done_today && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-muted">已驭过</span>}
+                </span>
               </div>
               <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{s.setting}</div>
               <div className="mt-2 flex items-center gap-2 text-[10px] text-faint">
@@ -229,6 +232,9 @@ export default function YuGame() {
               </div>
             </button>
           ))}
+          <p className="text-[11px] text-faint sm:col-span-2 lg:col-span-3">
+            五关皆可任驭 · 每日每关首驭计分，当日再驭练手不加分
+          </p>
         </section>
       )}
 

@@ -82,11 +82,16 @@ async function main() {
   };
   await send("Runtime.enable");
   await send("Page.enable");
-  await sleep(6000);
+  await sleep(10000);
 
   const cards = await evalJs(`[...document.querySelectorAll("button")].filter(b => b.innerText.includes("m/s")).length`);
   console.log("① 场景卡数量:", cards);
-  if (!cards) throw new Error("场景卡未加载（登录失败？）");
+  if (!cards) {
+    const dump = await evalJs(`document.body.innerText.slice(0,300)`);
+    console.log("页面内容:", dump);
+    console.log("console:", consoleMsgs.slice(0,6).join("\n") || "（无）");
+    throw new Error("场景卡未加载（登录失败？）");
+  }
 
   // /today 返回「当前用户未玩过的前 3 关」，玩过后会换卡 → 点第一张场景卡
   const firstCardName = await evalJs(`(() => {

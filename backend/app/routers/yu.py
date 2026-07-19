@@ -174,11 +174,17 @@ def today(
         ).scalars()
     }
     all_s = db.execute(select(YuScenario).order_by(YuScenario.sort_order)).scalars().all()
-    new_ones = [s for s in all_s if s.id not in ever_answered][:DAILY_LIMIT]
-    cards = [_scenario_brief(s, False) for s in new_ones]
-    if len(cards) < DAILY_LIMIT:
-        review = [s for s in all_s if s.id in ever_answered][: DAILY_LIMIT - len(cards)]
-        cards.extend([_scenario_brief(s, True) for s in review])
+    # 全部关卡都可玩：未玩过的排前面，玩过的作为复习随后；当日已评的标记出来（当日首驭才加分）
+    new_ones = [s for s in all_s if s.id not in ever_answered]
+    review = [s for s in all_s if s.id in ever_answered]
+    cards = [
+        {**_scenario_brief(s, False), "done_today": s.id in today_done}
+        for s in new_ones
+    ]
+    cards.extend([
+        {**_scenario_brief(s, True), "done_today": s.id in today_done}
+        for s in review
+    ])
     return {
         "scenarios": cards,
         "today_done_count": len(today_done),

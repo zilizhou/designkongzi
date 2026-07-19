@@ -411,6 +411,7 @@ export interface YuScenarioBrief {
   target_speed: number;
   target_duration_ms: number;
   answered: boolean;
+  done_today?: boolean;
 }
 export interface YuTrajectoryPoint {
   t: number;
