@@ -84,19 +84,21 @@ export function YuScene({ g }: { g: YuRefs }) {
     const speed = g.run.car.speed;
     sfx.update(g.running ? speed : 0, g.running);
 
-    // 追尾相机：位置缓动 + 速度 FOV + 高速微颠
+    // 追尾相机：沿车头方向跟在正后方（弯道时相机随车转）+ 速度 FOV + 高速微颠
     const cw = carWorld(g);
     const t = state.clock.elapsedTime;
     const shake = speed > 9 ? (speed - 9) * 0.012 : 0;
-    const px = cw.x * 0.72 + Math.sin(t * 17) * shake;
+    const fx = Math.sin(cw.yaw);
+    const fz = -Math.cos(cw.yaw);
+    const px = cw.x - fx * 8.6 + Math.sin(t * 17) * shake;
     const py = 4.6 + Math.cos(t * 21) * shake * 0.6;
-    const pz = cw.z + 8.6;
+    const pz = cw.z - fz * 8.6;
     const k = Math.min(1, dt * 3.2);
     camPos.current.x += (px - camPos.current.x) * k;
     camPos.current.y += (py - camPos.current.y) * k;
     camPos.current.z += (pz - camPos.current.z) * Math.min(1, dt * 5);
     camera.position.copy(camPos.current);
-    lookTarget.set(cw.x * 0.85, 3.0, cw.z - 4);
+    lookTarget.set(cw.x + fx * 6, 2.2, cw.z + fz * 6);
     camLook.current.lerp(lookTarget, Math.min(1, dt * 4));
     camera.lookAt(camLook.current);
     const cam = camera as THREE.PerspectiveCamera;

@@ -1,6 +1,6 @@
 /** 御艺·五御 — WebAudio 合成音效（无外部资源）
  *
- *   update(speed)  马蹄声四步节奏 + 风噪，速度驱动（每帧调用）
+ *   update(speed)  马蹄「哒-哒」小快步 + 木轴轻响 + 鸾铃 + 轻风，速度驱动（每帧调用）
  *   beatChime(ok)  节拍门：合拍 = 鸾铃清响，错过 = 低哑
  *   junbiao()      过君表（缓行致礼）一声钟
  *   li()           按「礼」— 揖礼磬音
@@ -75,35 +75,32 @@ function noiseBurst(dur = 0.12, vol = 0.05, low = 400, high = 2000, when = 0) {
   src.start(t0);
 }
 
-// ── 持续层：马蹄 + 风噪（每帧以速度驱动） ──
+// ── 持续层：马蹄 + 车轮木声 + 轻风（每帧以速度驱动） ──
 export function update(speed: number, running: boolean) {
   const c = ac();
   if (!c) return;
   lastSpeed = speed;
 
-  // 风噪
+  // 高速轻风气流声（很弱，不作主声）
   if (running && !windSrc) {
     const len = c.sampleRate * 2;
     const buf = c.createBuffer(1, len, c.sampleRate);
     const d = buf.getChannelData(0);
-    let v = 0;
-    for (let i = 0; i < len; i++) {
-      v = v * 0.98 + (Math.random() * 2 - 1) * 0.02; // 棕色噪声
-      d[i] = v * 8;
-    }
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; // 白噪声
     windSrc = c.createBufferSource();
     windSrc.buffer = buf;
     windSrc.loop = true;
     const f = c.createBiquadFilter();
-    f.type = "lowpass";
-    f.frequency.value = 600;
+    f.type = "bandpass";
+    f.frequency.value = 900;
+    f.Q.value = 0.4;
     windGain = c.createGain();
     windGain.gain.value = 0;
     windSrc.connect(f).connect(windGain).connect(c.destination);
     windSrc.start();
   }
   if (windGain) {
-    const target = running ? Math.min(0.05, speed * 0.005) : 0;
+    const target = running ? Math.min(0.014, speed * 0.0013) : 0;
     windGain.gain.setTargetAtTime(target, c.currentTime, 0.2);
   }
   if (!running && windSrc) {
@@ -114,21 +111,35 @@ export function update(speed: number, running: boolean) {
     windGain = null;
   }
 
-  // 马蹄（四步一轮：哒-哒-哒-哒，节奏随速度）
+  // 马蹄（小快步「哒-哒」成对，节奏随速度）+ 木轴/鸾铃点缀
   if (running && speed > 1 && !hoofTimer) {
     const schedule = () => {
       const s = lastSpeed;
       if (s <= 1) return;
-      const pat = [0, 0.16, 0.34, 0.5]; // 四蹄错位
-      const cycle = Math.max(0.34, 0.85 - s * 0.035);
-      const base = hoofStep % 4;
-      const freq = base % 2 === 0 ? 150 + s * 3 : 110 + s * 2;
-      tone(freq, 0.05, "square", 0.014);
-      noiseBurst(0.03, 0.012, 800, 2600);
+      const which = hoofStep % 2;
+      if (which === 0) {
+        // clip（前蹄，偏高）
+        tone(1050, 0.04, "sine", 0.032, 0, 520);
+        noiseBurst(0.025, 0.016, 1400, 3000);
+      } else {
+        // clop（后蹄，偏低）
+        tone(760, 0.045, "sine", 0.03, 0, 380);
+        noiseBurst(0.03, 0.014, 900, 2200);
+      }
       hoofStep++;
-      // 下一击
-      const nextIn = (pat[(hoofStep % 4)] || cycle) * 0 + cycle * (base === 3 ? 1.25 : 0.62);
-      hoofTimer = setTimeout(schedule, nextIn * 1000);
+      // 木轴轻响（每 4 对蹄声一次）
+      if (hoofStep % 8 === 0) {
+        const f = 300 + Math.random() * 140;
+        tone(f, 0.16, "triangle", 0.007, 0.02, f * 0.82);
+      }
+      // 鸾铃轻颤（每 6 对一次）
+      if (hoofStep % 12 === 6) {
+        tone(2350, 0.1, "sine", 0.007, 0.03);
+        tone(3136, 0.12, "sine", 0.005, 0.07);
+      }
+      const within = Math.max(0.1, 0.17 - s * 0.004);   // 一对之内
+      const between = Math.max(0.16, 0.55 - s * 0.028); // 两对之间
+      hoofTimer = setTimeout(schedule, (which === 0 ? within : between) * 1000);
     };
     hoofTimer = setTimeout(schedule, 0);
   } else if ((!running || speed <= 1) && hoofTimer) {

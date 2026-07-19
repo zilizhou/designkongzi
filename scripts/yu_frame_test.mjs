@@ -43,8 +43,11 @@ async function main() {
   await send("Page.enable");
   await sleep(6000);
 
+  const cardName = process.env.YU_CARD;
   const card = await evalJs(`(() => {
-    const b = [...document.querySelectorAll("button")].find(x => x.innerText.includes("m/s"));
+    const want = ${JSON.stringify(cardName ?? "")};
+    const bs = [...document.querySelectorAll("button")].filter(x => x.innerText.includes("m/s"));
+    const b = want ? bs.find(x => x.innerText.includes(want)) : bs[0];
     if (!b) return null; b.scrollIntoView({block:"center"});
     const r = b.getBoundingClientRect();
     return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
@@ -56,21 +59,29 @@ async function main() {
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", buttons: 0, clickCount: 1 });
   await sleep(2500);
 
-  // 巡航到 ~8 m/s 保持
+  // 巡航到 ~8 m/s 保持（CRUISE=0 则一直扬鞭冲高速，用于快速到达弯道）
+  const cruise = process.env.CRUISE !== "0";
   let holding = false;
-  for (let i = 0; i < 120; i++) {
+  let shots = 0;
+  if (!cruise) {
+    await send("Input.dispatchKeyEvent", { type: "keyDown", code: "ArrowUp", key: "ArrowUp" });
+    holding = true;
+  }
+  for (let i = 0; i < 160; i++) {
     const v = await evalJs(`(() => {
       const el = [...document.querySelectorAll("span")].find(s => s.nextSibling?.textContent?.includes("m/s"));
       return el ? parseFloat(el.textContent) : -1;
     })()`);
-    if (v >= 0) {
+    if (cruise && v >= 0) {
       if (v < 7.8 && !holding) { await send("Input.dispatchKeyEvent", { type: "keyDown", code: "ArrowUp", key: "ArrowUp" }); holding = true; }
       else if (v > 8.4 && holding) { await send("Input.dispatchKeyEvent", { type: "keyUp", code: "ArrowUp", key: "ArrowUp" }); holding = false; }
     }
-    if (i === 50) {
+    const every = cruise ? 50 : 40;
+    if (i > 0 && i % every === 0 && shots < 4) {
+      shots++;
       const r = await send("Page.captureScreenshot", { format: "png" });
-      writeFileSync("/tmp/yu_frame.png", Buffer.from(r.data, "base64"));
-      console.log("已截图, 速度", v);
+      writeFileSync(shots === 1 ? "/tmp/yu_frame.png" : `/tmp/yu_curve_${shots}.png`, Buffer.from(r.data, "base64"));
+      console.log(`已截图 ${shots}, 速度`, v);
     }
     await sleep(250);
   }
