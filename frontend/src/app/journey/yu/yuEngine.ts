@@ -24,6 +24,9 @@ export const PHYS = {
   MAX_SPEED: 14,
   LAT_SPEED: 20,
   ROAD_HALF: 13.5, // 车道中心向左右可偏的最大值（米）
+  RUT_ZONE: 1.1,   // 循轨范围：|x| 在此内视为双轮入辙（辙距 ±0.75）
+  RUT_GUIDE: 1.4,  // 循轨导向：松手时辙将车向中线带回（/s）
+  OFFRUT_DRAG: 0.9, // 出辙颠簸阻力（m/s²）
 } as const;
 
 /** 玩家输入（持续量 + li 边沿） */
@@ -48,6 +51,7 @@ export interface YuRunState {
   chasedDeer: Set<number>;
   pedTriggerMs: Map<number, number>; // 行人开始横穿的时刻（场景动画用）
   deerFleeMs: Map<number, number>; // 鹿受惊奔逃的时刻
+  rutOff: number; // 出辙程度 0=循轨 1=完全出辙（车身颠簸/音效用）
   finished: boolean;
 }
 
@@ -65,6 +69,7 @@ export function createRunState(): YuRunState {
     chasedDeer: new Set(),
     pedTriggerMs: new Map(),
     deerFleeMs: new Map(),
+    rutOff: 0,
     finished: false,
   };
 }
@@ -135,7 +140,17 @@ export function stepRun(
   // ── 横向（x = 相对车道中心，米） ──
   if (input.left) car.x -= PHYS.LAT_SPEED * dt;
   if (input.right) car.x += PHYS.LAT_SPEED * dt;
+  // 循轨导向：不打方向且在辙区时，车辙将车向中线带回（行于轨则稳）
+  if (!input.left && !input.right && Math.abs(car.x) <= PHYS.RUT_ZONE && car.speed > 0.5) {
+    car.x -= car.x * Math.min(1, PHYS.RUT_GUIDE * dt);
+  }
   car.x = Math.max(-PHYS.ROAD_HALF, Math.min(PHYS.ROAD_HALF, car.x));
+
+  // 出辙：颠簸阻力 + 出辙程度（0..1，供车身抖动与音效）
+  rs.rutOff = Math.max(0, Math.min(1, (Math.abs(car.x) - PHYS.RUT_ZONE) / 3));
+  if (rs.rutOff > 0 && car.speed > 0) {
+    car.speed = Math.max(0, car.speed - PHYS.OFFRUT_DRAG * rs.rutOff * dt);
+  }
 
   // ── 节拍（鸣和鸾）：beats[i] 秒时应达 beats[i]·target_speed，±30m 算合拍 ──
   while (rs.nextBeatIdx < beats.length && elapsed / 1000 >= beats[rs.nextBeatIdx]) {

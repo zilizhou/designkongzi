@@ -61,6 +61,7 @@ async function main() {
 
   // 巡航到 ~8 m/s 保持（CRUISE=0 则一直扬鞭冲高速，用于快速到达弯道）
   const cruise = process.env.CRUISE !== "0";
+  const offRut = process.env.OFFRUT === "1"; // 中途右打出辙，验证颠簸
   let holding = false;
   let shots = 0;
   if (!cruise) {
@@ -76,6 +77,8 @@ async function main() {
       if (v < 7.8 && !holding) { await send("Input.dispatchKeyEvent", { type: "keyDown", code: "ArrowUp", key: "ArrowUp" }); holding = true; }
       else if (v > 8.4 && holding) { await send("Input.dispatchKeyEvent", { type: "keyUp", code: "ArrowUp", key: "ArrowUp" }); holding = false; }
     }
+    if (offRut && i === 24) await send("Input.dispatchKeyEvent", { type: "keyDown", code: "ArrowRight", key: "ArrowRight" });
+    if (offRut && i === 34) await send("Input.dispatchKeyEvent", { type: "keyUp", code: "ArrowRight", key: "ArrowRight" });
     const every = cruise ? 50 : 40;
     if (i > 0 && i % every === 0 && shots < 4) {
       shots++;

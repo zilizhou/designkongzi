@@ -1,6 +1,6 @@
 /** 御艺·五御 — WebAudio 合成音效（无外部资源）
  *
- *   update(speed)  马蹄「哒-哒」小快步 + 木轴轻响 + 鸾铃 + 轻风，速度驱动（每帧调用）
+ *   update(speed)  马蹄「哒-哒」小快步 + 木轴轻响 + 鸾铃 + 轻风 + 出辙低鸣，速度驱动（每帧调用）
  *   beatChime(ok)  节拍门：合拍 = 鸾铃清响，错过 = 低哑
  *   junbiao()      过君表（缓行致礼）一声钟
  *   li()           按「礼」— 揖礼磬音
@@ -15,6 +15,8 @@
 let ctx: AudioContext | null = null;
 let windSrc: AudioBufferSourceNode | null = null;
 let windGain: GainNode | null = null;
+let rumbleSrc: AudioBufferSourceNode | null = null;
+let rumbleGain: GainNode | null = null;
 let hoofTimer: ReturnType<typeof setInterval> | null = null;
 let hoofStep = 0;
 let lastSpeed = 0;
@@ -75,8 +77,8 @@ function noiseBurst(dur = 0.12, vol = 0.05, low = 400, high = 2000, when = 0) {
   src.start(t0);
 }
 
-// ── 持续层：马蹄 + 车轮木声 + 轻风（每帧以速度驱动） ──
-export function update(speed: number, running: boolean) {
+// ── 持续层：马蹄 + 车轮木声 + 轻风 + 出辙颠簸声（每帧以速度驱动） ──
+export function update(speed: number, running: boolean, rutOff = 0) {
   const c = ac();
   if (!c) return;
   lastSpeed = speed;
@@ -109,6 +111,39 @@ export function update(speed: number, running: boolean) {
     setTimeout(() => { try { src.stop(); } catch { /* noop */ } }, 600);
     windSrc = null;
     windGain = null;
+  }
+
+  // 出辙颠簸低鸣（碎石/软土，音量随出辙程度与速度）
+  if (running && !rumbleSrc) {
+    const len = c.sampleRate * 2;
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let v = 0;
+    for (let i = 0; i < len; i++) {
+      v = v * 0.94 + (Math.random() * 2 - 1) * 0.06; // 松散颗粒感
+      d[i] = v * 4;
+    }
+    rumbleSrc = c.createBufferSource();
+    rumbleSrc.buffer = buf;
+    rumbleSrc.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = 220;
+    rumbleGain = c.createGain();
+    rumbleGain.gain.value = 0;
+    rumbleSrc.connect(f).connect(rumbleGain).connect(c.destination);
+    rumbleSrc.start();
+  }
+  if (rumbleGain) {
+    const target = running ? rutOff * Math.min(1, speed / 8) * 0.055 : 0;
+    rumbleGain.gain.setTargetAtTime(target, c.currentTime, 0.12);
+  }
+  if (!running && rumbleSrc) {
+    rumbleGain?.gain.setTargetAtTime(0, c.currentTime, 0.1);
+    const src = rumbleSrc;
+    setTimeout(() => { try { src.stop(); } catch { /* noop */ } }, 500);
+    rumbleSrc = null;
+    rumbleGain = null;
   }
 
   // 马蹄（小快步「哒-哒」成对，节奏随速度）+ 木轴/鸾铃点缀
@@ -151,6 +186,7 @@ export function update(speed: number, running: boolean) {
 export function stopAll() {
   if (hoofTimer) { clearTimeout(hoofTimer); hoofTimer = null; }
   if (windSrc) { try { windSrc.stop(); } catch { /* noop */ } windSrc = null; windGain = null; }
+  if (rumbleSrc) { try { rumbleSrc.stop(); } catch { /* noop */ } rumbleSrc = null; rumbleGain = null; }
 }
 
 // ── 事件音 ──

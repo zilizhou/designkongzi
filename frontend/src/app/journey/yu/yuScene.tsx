@@ -81,7 +81,7 @@ export function YuScene({ g }: { g: YuRefs }) {
       }
     }
     const speed = g.run.car.speed;
-    sfx.update(g.running ? speed : 0, g.running);
+    sfx.update(g.running ? speed : 0, g.running, g.run.rutOff);
 
     // 追尾相机：沿车头方向跟在正后方（弯道时相机随车转）+ 速度 FOV + 高速微颠
     const cw = carWorld(g);
@@ -645,10 +645,15 @@ function Chariot({ g }: { g: YuRefs }) {
     const spin = (speed / 0.65) * 0.016;
     if (wheelL.current) wheelL.current.rotation.x += spin;
     if (wheelR.current) wheelR.current.rotation.x += spin;
-    // 车身起伏
+    // 车身起伏（循轨平稳；出辙则颠簸加剧、带横向摇晃）
     if (bodyRef.current) {
-      bodyRef.current.position.y = Math.sin(t * 9) * 0.02 * Math.min(1, speed / 6);
-      bodyRef.current.rotation.x = Math.sin(t * 7.3) * 0.008 * Math.min(1, speed / 6);
+      const off = g.run.rutOff * Math.min(1, speed / 7); // 出辙颠簸强度
+      const jolt =
+        (Math.sin(t * 23.7) * 0.5 + Math.sin(t * 31.3) * 0.35 + Math.sin(t * 47.1) * 0.15) * off;
+      bodyRef.current.position.y =
+        Math.sin(t * 9) * 0.02 * Math.min(1, speed / 6) + jolt * 0.075;
+      bodyRef.current.rotation.x = Math.sin(t * 7.3) * 0.008 * Math.min(1, speed / 6) + jolt * 0.02;
+      bodyRef.current.rotation.z = Math.sin(t * 27.9) * 0.022 * off;
     }
     // 马蹄快步
     horseRefs.forEach((h, hi) => {
