@@ -51,7 +51,6 @@ const FOG = "#ece4cd";
 const ROAD_W = 18; // 视觉路宽（米）
 const GOLD = "#d9a521";
 const VERMILION = "#b23a2c";
-const STONE = "#8a8578";
 
 /** 车的世界位置（含弯道中心偏移） */
 function carWorld(g: YuRefs): { x: number; z: number; yaw: number } {
@@ -275,7 +274,9 @@ function Clouds() {
   );
 }
 
-// ── 御道（随弯道偏移的条带 + 界石 + 中心标线） ──
+// ── 御道（随弯道偏移的夯土条带 + 界石 + 车辙双轨「九六线」） ──
+//  先秦无现代黑白标线：路面为夯土色，车道以两轮车辙（轨）示向，
+//  轨距取「车同轨」六尺制约 ±0.75m，随弯道一同偏移。
 function Road({ g }: { g: YuRefs }) {
   const data = useMemo(() => {
     const cfg = g.scenario?.road_config;
@@ -298,18 +299,38 @@ function Road({ g }: { g: YuRefs }) {
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    // 界石 + 中心线
+    // 车辙双轨（两条压实土痕）
+    const rutPts: number[] = [];
+    const rutIdx: number[] = [];
+    const RUT = 0.75; // 轨距之半（≈六尺）
+    const RW = 0.22;  // 辙宽之半
+    for (let i = 0; i <= n; i++) {
+      const y = i * step;
+      const cx = roadCenterX(cfg, y);
+      rutPts.push(
+        cx - RUT - RW, 0.045, -y, cx - RUT + RW, 0.045, -y,
+        cx + RUT - RW, 0.045, -y, cx + RUT + RW, 0.045, -y,
+      );
+    }
+    for (let i = 0; i < n; i++) {
+      const a = i * 4;
+      // 左辙
+      rutIdx.push(a, a + 1, a + 4, a + 1, a + 5, a + 4);
+      // 右辙
+      rutIdx.push(a + 2, a + 3, a + 6, a + 3, a + 7, a + 6);
+    }
+    const rutGeo = new THREE.BufferGeometry();
+    rutGeo.setAttribute("position", new THREE.Float32BufferAttribute(rutPts, 3));
+    rutGeo.setIndex(rutIdx);
+    rutGeo.computeVertexNormals();
+    // 界石
     const stones: { x: number; z: number }[] = [];
-    const dashes: { x: number; z: number }[] = [];
     for (let y = 10; y < length; y += 20) {
       const cx = roadCenterX(cfg, y);
       stones.push({ x: cx - ROAD_W / 2 - 0.6, z: -y });
       stones.push({ x: cx + ROAD_W / 2 + 0.6, z: -y });
     }
-    for (let y = 6; y < length; y += 12) {
-      dashes.push({ x: roadCenterX(cfg, y), z: -y });
-    }
-    return { geo, stones, dashes };
+    return { geo, rutGeo, stones };
   }, [g.scenario]);
 
   return (
@@ -317,16 +338,13 @@ function Road({ g }: { g: YuRefs }) {
       <mesh geometry={data.geo}>
         <meshStandardMaterial color="#d8ceaf" />
       </mesh>
+      <mesh geometry={data.rutGeo}>
+        <meshStandardMaterial color="#bfae87" />
+      </mesh>
       {data.stones.map((s, i) => (
-        <mesh key={i} position={[s.x, 0.12, s.z]}>
-          <boxGeometry args={[0.5, 0.24, 0.5]} />
-          <meshStandardMaterial color={STONE} />
-        </mesh>
-      ))}
-      {data.dashes.map((d, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[d.x, 0.04, d.z]}>
-          <planeGeometry args={[0.28, 2.2]} />
-          <meshBasicMaterial color="#b8ab86" />
+        <mesh key={i} position={[s.x, 0.1, s.z]}>
+          <boxGeometry args={[0.45, 0.2, 0.45]} />
+          <meshStandardMaterial color="#b0a184" />
         </mesh>
       ))}
     </>
@@ -357,7 +375,7 @@ function River({ cfg }: { cfg: YuRoadConfig }) {
   }, [cfg]);
   return (
     <mesh geometry={geo}>
-      <meshStandardMaterial color="#7fa8b8" transparent opacity={0.85} />
+      <meshBasicMaterial color="#9dc2cf" transparent opacity={0.9} />
     </mesh>
   );
 }
