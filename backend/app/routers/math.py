@@ -186,15 +186,20 @@ def today(
         ).scalars()
     }
     all_s = db.execute(select(MathScenario).order_by(MathScenario.sort_order)).scalars().all()
-    new_ones = [s for s in all_s if s.id not in ever_answered][:DAILY_LIMIT]
-    cards = [_scenario_brief(s, False) for s in new_ones]
-    if len(cards) < DAILY_LIMIT:
-        review = [s for s in all_s if s.id in ever_answered][: DAILY_LIMIT - len(cards)]
-        cards.extend([_scenario_brief(s, True) for s in review])
+    # 全部关卡开放：未玩过的在前，复习的在后；每关标记今日是否已完成
+    new_ones = [s for s in all_s if s.id not in ever_answered]
+    review = [s for s in all_s if s.id in ever_answered]
+    cards = [
+        {**_scenario_brief(s, False), "done_today": s.id in today_done}
+        for s in new_ones
+    ] + [
+        {**_scenario_brief(s, True), "done_today": s.id in today_done}
+        for s in review
+    ]
     return {
         "scenarios": cards,
         "today_done_count": len(today_done),
-        "daily_limit": DAILY_LIMIT,
+        "daily_limit": len(all_s),
     }
 
 

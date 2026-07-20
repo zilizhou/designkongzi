@@ -515,6 +515,7 @@ export interface MathScenarioBrief {
   total: number;
   unit: string;
   answered: boolean;
+  done_today?: boolean;
 }
 export interface MathScenarioFull extends MathScenarioBrief {
   ideal_shares: MathItemIdeal[];
