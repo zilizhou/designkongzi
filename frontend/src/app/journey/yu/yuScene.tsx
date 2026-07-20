@@ -624,6 +624,56 @@ function FinishGate({ g }: { g: YuRefs }) {
   );
 }
 
+/** 御者（深衣拱手，受「礼」时俯身相揖） */
+const Driver = forwardRef<THREE.Group, { coat: string }>(
+  function DriverInner({ coat }, ref) {
+    return (
+      <group ref={ref} position={[0, 1.28, -0.1]}>
+        {/* 深衣 */}
+        <mesh position={[0, 0.16, 0]}>
+          <cylinderGeometry args={[0.16, 0.2, 0.42, 10]} />
+          <meshStandardMaterial color={coat} />
+        </mesh>
+        {/* 双臂前拱 */}
+        <mesh position={[0, 0.22, -0.14]} rotation={[Math.PI / 2.6, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.3, 8]} />
+          <meshStandardMaterial color={coat} />
+        </mesh>
+        {/* 首 */}
+        <mesh position={[0, 0.44, 0]}>
+          <sphereGeometry args={[0.11, 12, 10]} />
+          <meshStandardMaterial color="#d9b48f" />
+        </mesh>
+        {/* 冠 */}
+        <mesh position={[0, 0.53, 0]}>
+          <cylinderGeometry args={[0.07, 0.09, 0.08, 10]} />
+          <meshStandardMaterial color="#2b2620" />
+        </mesh>
+      </group>
+    );
+  },
+);
+Driver.displayName = "Driver";
+
+/** 最近一次「礼/相揖」事件时刻（无则 -1） */
+function lastBowT(g: YuRefs, idx?: number): number {
+  const evs = g.run.events;
+  for (let i = evs.length - 1; i >= 0; i--) {
+    const e = evs[i];
+    if (idx == null ? e.type === "li" || e.type === "meet_li" : e.type === "meet_li" && e.meta?.idx === idx) {
+      return e.t;
+    }
+  }
+  return -1;
+}
+
+/** 拱手俯身角：事件后 1.4s 一揖到底再起身；delay 用于回礼稍迟 */
+function bowAngle(g: YuRefs, t0: number, delayMs = 0): number {
+  if (t0 < 0) return 0;
+  const ph = (g.run.elapsedMs - t0 - delayMs) / 1400;
+  return ph >= 0 && ph <= 1 ? Math.sin(ph * Math.PI) * 0.55 : 0;
+}
+
 // ── 车马往来：AI 轺车（对向会车 / 前行慢车，单马素盖以别于玩家） ──
 function Traffic({ g }: { g: YuRefs }) {
   const list = g.scenario?.road_config?.traffic ?? [];
@@ -631,17 +681,18 @@ function Traffic({ g }: { g: YuRefs }) {
   return (
     <>
       {list.map((tr, i) => (
-        <AIChariot key={i} g={g} tr={tr} />
+        <AIChariot key={i} g={g} tr={tr} idx={i} />
       ))}
     </>
   );
 }
 
-function AIChariot({ g, tr }: { g: YuRefs; tr: YuTraffic }) {
+function AIChariot({ g, tr, idx }: { g: YuRefs; tr: YuTraffic; idx: number }) {
   const root = useRef<THREE.Group>(null);
   const horseRef = useRef<THREE.Group>(null);
   const wheelL = useRef<THREE.Group>(null);
   const wheelR = useRef<THREE.Group>(null);
+  const driverRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
     const el = root.current;
@@ -670,6 +721,10 @@ function AIChariot({ g, tr }: { g: YuRefs; tr: YuTraffic }) {
         }
       });
     }
+    // 相揖回礼（稍迟 0.4s，先受礼再答礼）
+    if (driverRef.current) {
+      driverRef.current.rotation.x = bowAngle(g, lastBowT(g, idx), 400);
+    }
   });
 
   const oncoming = tr.type === "oncoming";
@@ -695,6 +750,7 @@ function AIChariot({ g, tr }: { g: YuRefs; tr: YuTraffic }) {
         <coneGeometry args={[1.05, 0.46, 12]} />
         <meshStandardMaterial color={oncoming ? "#5a6e8c" : "#7c8a5a"} />
       </mesh>
+      <Driver ref={driverRef} coat={oncoming ? "#3c4048" : "#4e3f2c"} />
       <SpokedWheel ref={wheelL} x={-0.9} z={0.22} />
       <SpokedWheel ref={wheelR} x={0.9} z={0.22} />
     </group>
@@ -707,6 +763,7 @@ function Chariot({ g }: { g: YuRefs }) {
   const wheelL = useRef<THREE.Group>(null);
   const wheelR = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
+  const driverRef = useRef<THREE.Group>(null);
   const horseRefs = [useRef<THREE.Group>(null), useRef<THREE.Group>(null)];
 
   useFrame((state) => {
@@ -749,6 +806,10 @@ function Chariot({ g }: { g: YuRefs }) {
         }
       });
     });
+    // 御者拱手（按礼时一揖）
+    if (driverRef.current) {
+      driverRef.current.rotation.x = bowAngle(g, lastBowT(g));
+    }
   });
 
   return (
@@ -795,6 +856,8 @@ function Chariot({ g }: { g: YuRefs }) {
           <cylinderGeometry args={[0.035, 0.035, 1.6, 8]} />
           <meshStandardMaterial color="#6b4a26" />
         </mesh>
+        {/* 御者（按礼时拱手一揖） */}
+        <Driver ref={driverRef} coat="#6b2420" />
         {/* 华盖杆 + 盖 */}
         <mesh position={[0, 1.9, 0.25]}>
           <cylinderGeometry args={[0.035, 0.035, 1.3, 8]} />

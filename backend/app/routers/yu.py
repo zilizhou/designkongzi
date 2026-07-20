@@ -106,6 +106,7 @@ def score_trajectory(
     oncoming_total = sum(1 for t in traffic if t.get("type") == "oncoming")
     meet_yields = sum(1 for e in events if e.get("type") == "meet_yield")
     meet_rudes = sum(1 for e in events if e.get("type") == "meet_rude")
+    meet_li = sum(1 for e in events if e.get("type") == "meet_li")
 
     rang = 1.0
     if junbiao_total > 0:
@@ -123,6 +124,8 @@ def score_trajectory(
         rang = min(rang, max(0.0, rang_m))
     # 闯人 = 重罚（每次 -0.5）
     rang = max(0.0, rang - hit_pedestrian * 0.5)
+    # 相揖 = 礼尚往来（每次 +0.1，封顶 1.0）
+    rang = min(1.0, rang + meet_li * 0.1)
 
     # ─── 不极：急动作 + 追禽 + 逼随 ───
     hard_brakes = sum(1 for e in events if e.get("type") == "hard_brake")
@@ -158,6 +161,7 @@ def score_trajectory(
             "overspeeds": overspeeds,
             "meet_yields": meet_yields,
             "meet_rudes": meet_rudes,
+            "meet_li": meet_li,
             "tailgates": tailgates,
         },
     }

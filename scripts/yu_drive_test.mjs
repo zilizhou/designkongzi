@@ -121,6 +121,7 @@ async function main() {
   const meetMode = process.env.MEET === "1";
   let holding = false;
   let holdingRight = false;
+  let bowed = false;
   let shotMid = false;
   let shotMeet = false;
   let lastLog = 0;
@@ -139,7 +140,14 @@ async function main() {
     if (meetMode) {
       if (pct > 40 && pct < 52 && !holdingRight) { await key("ArrowRight", true); holdingRight = true; console.log("   → 靠右让车（进度", pct, "）"); }
       if ((pct >= 52 || (pct > 0 && pct <= 40)) && holdingRight) { await key("ArrowRight", false); holdingRight = false; }
-      if (!shotMeet && pct > 44 && pct < 52) { await shot("/tmp/yu_meet.png"); shotMeet = true; console.log("   ③ 会车截图（进度", pct, "）"); }
+      if (!bowed && pct > 45 && pct < 51) {
+        bowed = true;
+        await send("Input.dispatchKeyEvent", { type: "keyDown", code: "Space", key: " " });
+        await sleep(80);
+        await send("Input.dispatchKeyEvent", { type: "keyUp", code: "Space", key: " " });
+        console.log("   → 按礼相揖（进度", pct, "）");
+      }
+      if (!shotMeet && pct > 45 && pct < 52) { await shot("/tmp/yu_meet.png"); shotMeet = true; console.log("   ③ 会车截图（进度", pct, "）"); }
     }
     if (!shotMid && Date.now() - t0 > 20000) { await shot("/tmp/yu_3d_mid.png"); shotMid = true; console.log("③ 中途截图（速度", v, "）"); }
     if (Date.now() - lastLog > 10000) {
@@ -159,7 +167,7 @@ async function main() {
     const grade = t.match(/(神驭|妙驭|中驭|试驭|学驭)/)?.[1];
     const bars = ["节 · 节奏稳匀","让 · 遇礼则让","不极 · 不急不追"].filter(x => t.includes(x)).length;
     return JSON.stringify({ score, grade, bars, beatLine: t.match(/节拍：命中 (\\d+\\/\\d+)/)?.[1],
-      meetLine: t.match(/会车：[^。]*。/)?.[0], tailLine: t.match(/随行：[^。]*。/)?.[0] });
+      meetLine: t.match(/会车：[^。]*。/)?.[0], bowLine: t.match(/相揖：[^。]*。/)?.[0], tailLine: t.match(/随行：[^。]*。/)?.[0] });
   })()`);
   console.log("④ 结算:", summary);
   console.log("console 错误:", consoleMsgs.length ? "\n" + consoleMsgs.slice(0, 8).join("\n") : "（无）");

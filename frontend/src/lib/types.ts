@@ -429,7 +429,7 @@ export type YuEventType =
   | "li" | "chase" | "hit_pedestrian" | "beat_hit"
   | "pedestrian_yield" | "junbiao_pass"
   | "hard_brake" | "overspeed"
-  | "meet_yield" | "meet_rude" | "tailgate";
+  | "meet_yield" | "meet_rude" | "tailgate" | "meet_li";
 export interface YuEvent {
   t: number;
   type: YuEventType;
@@ -456,6 +456,7 @@ export interface YuDriveResp {
     overspeeds: number;
     meet_yields?: number;
     meet_rudes?: number;
+    meet_li?: number;
     tailgates?: number;
   };
   yu_delta: number;

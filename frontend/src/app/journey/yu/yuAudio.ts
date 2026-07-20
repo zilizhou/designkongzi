@@ -237,6 +237,13 @@ export const meetRude = () => {
   noiseBurst(0.16, 0.04, 200, 900);
 };
 
+/** 相揖而礼（揖礼三音，温厚上行） */
+export const meetLi = () => {
+  tone(660, 0.18, "triangle", 0.05);
+  tone(990, 0.24, "sine", 0.035, 0.1);
+  tone(1320, 0.3, "sine", 0.025, 0.22);
+};
+
 /** 逼随前车（警告） */
 export const tailgate = () => {
   tone(330, 0.09, "square", 0.03);

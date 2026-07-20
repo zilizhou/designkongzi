@@ -97,6 +97,7 @@ export default function YuGame() {
         case "hit_pedestrian": sfx.hitPed(); say("撞到行人！", false); break;
         case "chase": sfx.deer(); say("逐禽违礼！", false); break;
         case "meet_yield": sfx.meetOk(); say("会车 · 礼让 ✓", true); break;
+        case "meet_li": sfx.meetLi(); say("相揖而礼 ✓", true); break;
         case "meet_rude": sfx.meetRude(); say("会车失礼 — 靠右缓行", false); break;
         case "tailgate": sfx.tailgate(); say("逼随前车 — 勿极勿逼", false); break;
         case "hard_brake": sfx.hardBrake(); say("急刹！", false); break;
@@ -268,7 +269,7 @@ export default function YuGame() {
               <div className="mt-1 text-[11px] opacity-70">{guide.tips}</div>
               {(current.road_config?.traffic?.length ?? 0) > 0 && (
                 <div className="mt-1.5 text-[11px] text-sky-200">
-                  途中有车马往来 —— 对向会车请靠右缓行；遇慢车勿逼随
+                  途中有车马往来 —— 对向会车请靠右缓行，相遇时按空格「礼」可相揖；遇慢车勿逼随
                 </div>
               )}
             </div>
@@ -469,6 +470,7 @@ function ResultCard({ result, onRetry, onBack }: { result: YuDriveResp; onRetry:
   if (st.pedestrian_yields > 0 || st.hit_pedestrian > 0) tips.push(`行人：让行 ${st.pedestrian_yields} 次${st.hit_pedestrian > 0 ? `，撞人 ${st.hit_pedestrian} 次` : ""}。见人先停稳。`);
   if (st.chase_attempts > 0) tips.push(`逐禽：追了 ${st.chase_attempts} 次。「禽逃则止，不复追」——直行即是礼。`);
   if ((st.meet_yields ?? 0) > 0 || (st.meet_rudes ?? 0) > 0) tips.push(`会车：礼让 ${st.meet_yields ?? 0} 次${(st.meet_rudes ?? 0) > 0 ? `，失礼 ${st.meet_rudes} 次` : ""}。对向来车，靠右缓行。`);
+  if ((st.meet_li ?? 0) > 0) tips.push(`相揖：会车时致礼 ${st.meet_li} 次，对方车夫也拱手回礼了。「礼尚往来」。`);
   if ((st.tailgates ?? 0) > 0) tips.push(`随行：逼随前车 ${st.tailgates} 次。车距即礼数，勿极勿逼。`);
   if (st.hard_brakes > 0 || st.overspeeds > 0) tips.push(`不极：急刹 ${st.hard_brakes} 次、超速 ${st.overspeeds} 次。早收缰，匀速行。`);
 

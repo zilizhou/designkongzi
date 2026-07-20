@@ -56,6 +56,7 @@ export interface YuRunState {
   deerFleeMs: Map<number, number>; // 鹿受惊奔逃的时刻
   rutOff: number; // 出辙程度 0=循轨 1=完全出辙（车身颠簸/音效用）
   metOncoming: Set<number>; // 已判定过会车的 traffic 下标
+  metLi: Set<number>; // 已相揖的对向车下标
   tailgateMs: Map<number, number>; // 慢车：逼随累计时长
   tailgated: Set<number>; // 已记逼随事件的慢车下标
   finished: boolean;
@@ -77,6 +78,7 @@ export function createRunState(): YuRunState {
     deerFleeMs: new Map(),
     rutOff: 0,
     metOncoming: new Set(),
+    metLi: new Set(),
     tailgateMs: new Map(),
     tailgated: new Set(),
     finished: false,
@@ -239,10 +241,18 @@ export function stepRun(
     }
   }
 
-  // ── 礼（边沿）：任何时候可致礼，后端按 li_count 鼓励（君表附近按下最有意义） ──
+  // ── 礼（边沿）：任何时候可致礼；会车窗口内按礼 = 相揖（对方回礼） ──
   if (input.liPressed) {
     input.liPressed = false;
     push(out, rs, { t: elapsed, type: "li" });
+    for (let i = 0; i < traffic.length; i++) {
+      const tr = traffic[i];
+      if (tr.type !== "oncoming" || rs.metLi.has(i)) continue;
+      if (Math.abs(car.y - trafficY(tr, elapsed)) < 25) {
+        push(out, rs, { t: elapsed, type: "meet_li", meta: { idx: i } });
+        rs.metLi.add(i);
+      }
+    }
   }
 
   // ── 采样（150ms） ──
