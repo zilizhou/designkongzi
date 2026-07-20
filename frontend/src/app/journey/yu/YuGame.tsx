@@ -24,7 +24,7 @@ import type {
   YuScenarioBrief,
   YuTodayResp,
 } from "@/lib/types";
-import { createRunState, finalizeEvents } from "./yuEngine";
+import { createRunState, finalizeEvents, trafficY } from "./yuEngine";
 import { createYuRefs, YuScene, type YuRefs } from "./yuScene";
 import * as sfx from "./yuAudio";
 
@@ -96,6 +96,9 @@ export default function YuGame() {
         case "pedestrian_yield": sfx.yieldOk(); say("礼让行人 ✓", true); break;
         case "hit_pedestrian": sfx.hitPed(); say("撞到行人！", false); break;
         case "chase": sfx.deer(); say("逐禽违礼！", false); break;
+        case "meet_yield": sfx.meetOk(); say("会车 · 礼让 ✓", true); break;
+        case "meet_rude": sfx.meetRude(); say("会车失礼 — 靠右缓行", false); break;
+        case "tailgate": sfx.tailgate(); say("逼随前车 — 勿极勿逼", false); break;
         case "hard_brake": sfx.hardBrake(); say("急刹！", false); break;
         case "overspeed": sfx.overspeed(); say("超速 — 收缰", false); break;
       }
@@ -263,6 +266,11 @@ export default function YuGame() {
               <div className="font-serif text-lg" style={{ color: "#f0d9a0" }}>{current.title} · {guide.goal}</div>
               <div className="mt-1 text-xs leading-relaxed opacity-85">{current.hint}</div>
               <div className="mt-1 text-[11px] opacity-70">{guide.tips}</div>
+              {(current.road_config?.traffic?.length ?? 0) > 0 && (
+                <div className="mt-1.5 text-[11px] text-sky-200">
+                  途中有车马往来 —— 对向会车请靠右缓行；遇慢车勿逼随
+                </div>
+              )}
             </div>
           )}
 
@@ -397,16 +405,25 @@ function ProgressBar({ g, scenario, beatsDone }: { g: YuRefs; scenario: YuScenar
   const length = scenario.road_config?.length ?? 600;
   const obstacles = scenario.road_config?.obstacles ?? [];
   const beats = scenario.road_config?.beats ?? [];
+  const traffic = scenario.road_config?.traffic ?? [];
+  const trafficRefs = useRef<(HTMLDivElement | null)[]>([]);
   useEffect(() => {
     let raf = 0;
     const loop = () => {
       const pct = Math.min(100, (g.run.car.y / length) * 100);
       if (carRef.current) carRef.current.style.left = `${pct}%`;
+      traffic.forEach((tr, i) => {
+        const el = trafficRefs.current[i];
+        if (el) {
+          const p = Math.min(100, Math.max(0, (trafficY(tr, g.run.elapsedMs) / length) * 100));
+          el.style.left = `${p}%`;
+        }
+      });
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [g, length]);
+  }, [g, length, traffic]);
   return (
     <div className="pointer-events-none absolute inset-x-3 top-3 sm:inset-x-6">
       <div className="relative h-2 rounded-full bg-black/35 backdrop-blur">
@@ -415,6 +432,12 @@ function ProgressBar({ g, scenario, beatsDone }: { g: YuRefs; scenario: YuScenar
           <div key={i} className="absolute -top-[5px] -ml-2 text-xs"
             style={{ left: `${(o.y / length) * 100}%` }}>
             {o.type === "junbiao" ? "⛩️" : o.type === "pedestrian" ? "🚶" : "🦌"}
+          </div>
+        ))}
+        {traffic.map((tr, i) => (
+          <div key={`t${i}`} ref={(el) => { trafficRefs.current[i] = el; }}
+            className="absolute -top-[5px] -ml-2 text-xs" style={{ left: "0%" }}>
+            {tr.type === "oncoming" ? "🐴" : "🐂"}
           </div>
         ))}
         <div className="absolute -top-[6px] right-0 -mr-1 text-xs">🏁</div>
@@ -445,6 +468,8 @@ function ResultCard({ result, onRetry, onBack }: { result: YuDriveResp; onRetry:
   if (st.junbiao_passes > 0 || st.li_count > 0) tips.push(`礼让：君表通过 ${st.junbiao_passes} 次，按礼 ${st.li_count} 次。要慢下来再按礼。`);
   if (st.pedestrian_yields > 0 || st.hit_pedestrian > 0) tips.push(`行人：让行 ${st.pedestrian_yields} 次${st.hit_pedestrian > 0 ? `，撞人 ${st.hit_pedestrian} 次` : ""}。见人先停稳。`);
   if (st.chase_attempts > 0) tips.push(`逐禽：追了 ${st.chase_attempts} 次。「禽逃则止，不复追」——直行即是礼。`);
+  if ((st.meet_yields ?? 0) > 0 || (st.meet_rudes ?? 0) > 0) tips.push(`会车：礼让 ${st.meet_yields ?? 0} 次${(st.meet_rudes ?? 0) > 0 ? `，失礼 ${st.meet_rudes} 次` : ""}。对向来车，靠右缓行。`);
+  if ((st.tailgates ?? 0) > 0) tips.push(`随行：逼随前车 ${st.tailgates} 次。车距即礼数，勿极勿逼。`);
   if (st.hard_brakes > 0 || st.overspeeds > 0) tips.push(`不极：急刹 ${st.hard_brakes} 次、超速 ${st.overspeeds} 次。早收缰，匀速行。`);
 
   return (

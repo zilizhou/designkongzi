@@ -14,6 +14,7 @@ import type {
   YuEvent,
   YuRoadConfig,
   YuScenarioBrief,
+  YuTraffic,
   YuTrajectoryPoint,
 } from "@/lib/types";
 
@@ -54,6 +55,9 @@ export interface YuRunState {
   pedTriggerMs: Map<number, number>; // 行人开始横穿的时刻（场景动画用）
   deerFleeMs: Map<number, number>; // 鹿受惊奔逃的时刻
   rutOff: number; // 出辙程度 0=循轨 1=完全出辙（车身颠簸/音效用）
+  metOncoming: Set<number>; // 已判定过会车的 traffic 下标
+  tailgateMs: Map<number, number>; // 慢车：逼随累计时长
+  tailgated: Set<number>; // 已记逼随事件的慢车下标
   finished: boolean;
 }
 
@@ -72,6 +76,9 @@ export function createRunState(): YuRunState {
     pedTriggerMs: new Map(),
     deerFleeMs: new Map(),
     rutOff: 0,
+    metOncoming: new Set(),
+    tailgateMs: new Map(),
+    tailgated: new Set(),
     finished: false,
   };
 }
@@ -206,6 +213,32 @@ export function stepRun(
     }
   }
 
+  // ── 车马往来（会车礼让 / 随行勿逼） ──
+  const traffic = roadCfg.traffic || [];
+  for (let i = 0; i < traffic.length; i++) {
+    const tr = traffic[i];
+    const yAi = trafficY(tr, elapsed);
+    if (tr.type === "oncoming") {
+      if (!rs.metOncoming.has(i) && Math.abs(car.y - yAi) < 6) {
+        // 会车：靠右让道（x > 1.2）为有礼
+        push(out, rs, { t: elapsed, type: car.x > 1.2 ? "meet_yield" : "meet_rude", meta: { idx: i } });
+        rs.metOncoming.add(i);
+      }
+    } else {
+      // 慢车在前：尾随过近（<8m）且明显更快，持续 1.2s → 逼随（不极）
+      const v = tr.speed ?? 4.5;
+      const gap = yAi - car.y;
+      if (!rs.tailgated.has(i) && gap > 0 && gap < 8 && car.speed > v + 2.5) {
+        const acc = (rs.tailgateMs.get(i) ?? 0) + dt * 1000;
+        rs.tailgateMs.set(i, acc);
+        if (acc > 1200) {
+          push(out, rs, { t: elapsed, type: "tailgate", meta: { idx: i } });
+          rs.tailgated.add(i);
+        }
+      }
+    }
+  }
+
   // ── 礼（边沿）：任何时候可致礼，后端按 li_count 鼓励（君表附近按下最有意义） ──
   if (input.liPressed) {
     input.liPressed = false;
@@ -253,4 +286,15 @@ export function deerProgress(rs: YuRunState, idx: number): number {
   const t0 = rs.deerFleeMs.get(idx);
   if (t0 == null) return -1;
   return Math.min(1, (rs.elapsedMs - t0) / 3000);
+}
+
+/** AI 车马在 elapsedMs 时刻的沿路位置（米） */
+export function trafficY(tr: YuTraffic, elapsedMs: number): number {
+  const v = tr.speed ?? (tr.type === "oncoming" ? 6 : 4.5);
+  return tr.type === "oncoming" ? tr.y - v * (elapsedMs / 1000) : tr.y + v * (elapsedMs / 1000);
+}
+
+/** AI 车马的横向车道位置（各靠其右：对向车在玩家左侧，慢车在玩家右侧） */
+export function trafficX(tr: YuTraffic): number {
+  return tr.type === "oncoming" ? -2.5 : 2.5;
 }

@@ -13,7 +13,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { forwardRef, useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
-import type { YuEvent, YuObstacle, YuRoadConfig, YuScenarioBrief } from "@/lib/types";
+import type { YuEvent, YuObstacle, YuRoadConfig, YuScenarioBrief, YuTraffic } from "@/lib/types";
 import {
   beatExpectedY,
   createRunState,
@@ -21,6 +21,8 @@ import {
   pedProgress,
   roadCenterX,
   stepRun,
+  trafficX,
+  trafficY,
   type YuInput,
   type YuRunState,
 } from "./yuEngine";
@@ -127,6 +129,7 @@ export function YuScene({ g }: { g: YuRefs }) {
       {cfg?.curves && cfg.curves.length > 0 && <River cfg={cfg} />}
       <BeatGates g={g} />
       <Obstacles g={g} />
+      <Traffic g={g} />
       <FinishGate g={g} />
       <Chariot g={g} />
     </>
@@ -617,6 +620,83 @@ function FinishGate({ g }: { g: YuRefs }) {
         <boxGeometry args={[3, 0.8, 0.15]} />
         <meshStandardMaterial color="#f6f1df" />
       </mesh>
+    </group>
+  );
+}
+
+// ── 车马往来：AI 轺车（对向会车 / 前行慢车，单马素盖以别于玩家） ──
+function Traffic({ g }: { g: YuRefs }) {
+  const list = g.scenario?.road_config?.traffic ?? [];
+  if (!g.scenario || list.length === 0) return null;
+  return (
+    <>
+      {list.map((tr, i) => (
+        <AIChariot key={i} g={g} tr={tr} />
+      ))}
+    </>
+  );
+}
+
+function AIChariot({ g, tr }: { g: YuRefs; tr: YuTraffic }) {
+  const root = useRef<THREE.Group>(null);
+  const horseRef = useRef<THREE.Group>(null);
+  const wheelL = useRef<THREE.Group>(null);
+  const wheelR = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    const el = root.current;
+    if (!el) return;
+    const cfg = g.scenario?.road_config;
+    const yAi = trafficY(tr, g.run.elapsedMs);
+    const cx = roadCenterX(cfg, yAi);
+    el.position.set(cx + trafficX(tr), 0, -yAi);
+    const speed = tr.speed ?? (tr.type === "oncoming" ? 6 : 4.5);
+    // 朝向：对向车朝 +z（迎玩家），慢车与玩家同向
+    const lookY = tr.type === "oncoming" ? yAi - 6 : yAi + 6;
+    const a = Math.atan2(roadCenterX(cfg, lookY) - cx, 6);
+    el.rotation.y = tr.type === "oncoming" ? a - Math.PI : -a;
+    const t = state.clock.elapsedTime;
+    const spin = (speed / 0.65) * 0.016;
+    if (wheelL.current) wheelL.current.rotation.x += spin;
+    if (wheelR.current) wheelR.current.rotation.x += spin;
+    const hg = horseRef.current;
+    if (hg) {
+      const phase = t * (4 + speed * 1.1);
+      hg.position.y = Math.abs(Math.sin(phase)) * 0.05;
+      hg.children.forEach((child) => {
+        if (child.userData.leg != null) {
+          const off = child.userData.leg % 2 === 0 ? 0 : Math.PI;
+          child.rotation.x = Math.sin(phase + off) * 0.5;
+        }
+      });
+    }
+  });
+
+  const oncoming = tr.type === "oncoming";
+  return (
+    <group ref={root}>
+      <Horse ref={horseRef} x={0} coat={oncoming ? "#3a3a42" : "#6e5233"} mane="#241c14" />
+      {/* 辕 */}
+      <mesh position={[0, 0.86, -1.6]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.06, 2.4, 8]} />
+        <meshStandardMaterial color="#5a3b1d" />
+      </mesh>
+      {/* 舆（与玩家朱厢相别） */}
+      <mesh position={[0, 0.98, 0.2]}>
+        <boxGeometry args={[1.6, 0.48, 1.4]} />
+        <meshStandardMaterial color={oncoming ? "#474a55" : "#6b4a2e"} />
+      </mesh>
+      {/* 盖 */}
+      <mesh position={[0, 1.9, 0.22]}>
+        <cylinderGeometry args={[0.035, 0.035, 1.25, 8]} />
+        <meshStandardMaterial color="#5a3b1d" />
+      </mesh>
+      <mesh position={[0, 2.58, 0.22]}>
+        <coneGeometry args={[1.05, 0.46, 12]} />
+        <meshStandardMaterial color={oncoming ? "#5a6e8c" : "#7c8a5a"} />
+      </mesh>
+      <SpokedWheel ref={wheelL} x={-0.9} z={0.22} />
+      <SpokedWheel ref={wheelR} x={0.9} z={0.22} />
     </group>
   );
 }

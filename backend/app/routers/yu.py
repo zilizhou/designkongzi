@@ -102,6 +102,10 @@ def score_trajectory(
     obstacles = road_config.get("obstacles", []) if road_config else []
     junbiao_total = sum(1 for o in obstacles if o.get("type") == "junbiao")
     pedestrian_total = sum(1 for o in obstacles if o.get("type") == "pedestrian")
+    traffic = road_config.get("traffic", []) if road_config else []
+    oncoming_total = sum(1 for t in traffic if t.get("type") == "oncoming")
+    meet_yields = sum(1 for e in events if e.get("type") == "meet_yield")
+    meet_rudes = sum(1 for e in events if e.get("type") == "meet_rude")
 
     rang = 1.0
     if junbiao_total > 0:
@@ -113,16 +117,21 @@ def score_trajectory(
     if pedestrian_total > 0:
         rang_p = pedestrian_yields / pedestrian_total
         rang = min(rang, max(0.0, rang_p))
+    if oncoming_total > 0:
+        # 会车：每次都靠右礼让 = 1.0，失礼一次按比例降
+        rang_m = meet_yields / oncoming_total
+        rang = min(rang, max(0.0, rang_m))
     # 闯人 = 重罚（每次 -0.5）
     rang = max(0.0, rang - hit_pedestrian * 0.5)
 
-    # ─── 不极：急动作 + 追禽 ───
+    # ─── 不极：急动作 + 追禽 + 逼随 ───
     hard_brakes = sum(1 for e in events if e.get("type") == "hard_brake")
     chase_attempts = sum(1 for e in events if e.get("type") == "chase")
     overspeeds = sum(1 for e in events if e.get("type") == "overspeed")
+    tailgates = sum(1 for e in events if e.get("type") == "tailgate")
 
-    # 每次急刹 / 追禽 / 超速扣 0.15
-    buji = 1.0 - (hard_brakes + chase_attempts + overspeeds) * 0.15
+    # 每次急刹 / 追禽 / 超速 / 逼随扣 0.15
+    buji = 1.0 - (hard_brakes + chase_attempts + overspeeds + tailgates) * 0.15
     # 关 5 是逐禽左：追禽是重大违规，再扣 0.3
     if kind == "qinzuo":
         buji -= chase_attempts * 0.3
@@ -147,6 +156,9 @@ def score_trajectory(
             "hard_brakes": hard_brakes,
             "chase_attempts": chase_attempts,
             "overspeeds": overspeeds,
+            "meet_yields": meet_yields,
+            "meet_rudes": meet_rudes,
+            "tailgates": tailgates,
         },
     }
 

@@ -394,6 +394,12 @@ export interface YuRoadConfig {
   beats?: number[];
   curves?: YuRoadCurve[];
   obstacles?: YuObstacle[];
+  traffic?: YuTraffic[];
+}
+export interface YuTraffic {
+  type: "oncoming" | "slow";
+  y: number;         // t=0 时所在位置（米）
+  speed?: number;    // 默认对向 6 / 慢车 4.5
 }
 export interface YuRefBrief {
   ref_id: string;
@@ -422,7 +428,8 @@ export interface YuTrajectoryPoint {
 export type YuEventType =
   | "li" | "chase" | "hit_pedestrian" | "beat_hit"
   | "pedestrian_yield" | "junbiao_pass"
-  | "hard_brake" | "overspeed";
+  | "hard_brake" | "overspeed"
+  | "meet_yield" | "meet_rude" | "tailgate";
 export interface YuEvent {
   t: number;
   type: YuEventType;
@@ -447,6 +454,9 @@ export interface YuDriveResp {
     hard_brakes: number;
     chase_attempts: number;
     overspeeds: number;
+    meet_yields?: number;
+    meet_rudes?: number;
+    tailgates?: number;
   };
   yu_delta: number;
   xp_delta: number;

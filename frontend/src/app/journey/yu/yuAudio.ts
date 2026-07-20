@@ -225,6 +225,24 @@ export const deer = () => {
   tone(1500, 0.1, "sine", 0.025, 0.09);
 };
 
+/** 会车礼让（清越双音） */
+export const meetOk = () => {
+  tone(587, 0.14, "triangle", 0.05);
+  tone(880, 0.2, "sine", 0.04, 0.07);
+};
+
+/** 会车失礼（低哑不和） */
+export const meetRude = () => {
+  tone(196, 0.22, "sawtooth", 0.04);
+  noiseBurst(0.16, 0.04, 200, 900);
+};
+
+/** 逼随前车（警告） */
+export const tailgate = () => {
+  tone(330, 0.09, "square", 0.03);
+  tone(294, 0.11, "square", 0.03, 0.13);
+};
+
 export const hardBrake = () => noiseBurst(0.28, 0.06, 900, 3400);
 
 export const overspeed = () => {

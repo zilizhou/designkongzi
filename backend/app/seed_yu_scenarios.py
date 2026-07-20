@@ -117,6 +117,9 @@ SCENARIOS = [
             "length": 600,
             "beats": [4.0, 7.5, 11.0, 14.5, 18.0, 21.5],
             "obstacles": [],
+            "traffic": [
+                {"type": "oncoming", "y": 500, "speed": 6.0},
+            ],
         },
         "target_speed": 8.0,
         "target_duration_ms": 25000,
@@ -138,6 +141,9 @@ SCENARIOS = [
                 {"start": 460, "end": 580, "offset": 60},
             ],
             "obstacles": [],
+            "traffic": [
+                {"type": "oncoming", "y": 420, "speed": 6.0},
+            ],
         },
         "target_speed": 7.0,
         "target_duration_ms": 28000,
@@ -157,6 +163,9 @@ SCENARIOS = [
             "obstacles": [
                 {"type": "junbiao", "y": 200, "label": "君表"},
                 {"type": "junbiao", "y": 450, "label": "君表"},
+            ],
+            "traffic": [
+                {"type": "oncoming", "y": 300, "speed": 7.0},
             ],
         },
         "target_speed": 8.0,
@@ -178,6 +187,9 @@ SCENARIOS = [
                 {"type": "pedestrian", "y": 200, "x": 0, "cross_dir": 1, "trigger_y": 150},
                 {"type": "pedestrian", "y": 400, "x": 0, "cross_dir": -1, "trigger_y": 350},
             ],
+            "traffic": [
+                {"type": "slow", "y": 100, "speed": 4.5},
+            ],
         },
         "target_speed": 7.0,
         "target_duration_ms": 32000,
@@ -197,6 +209,9 @@ SCENARIOS = [
             "obstacles": [
                 {"type": "deer", "y": 180, "x": -100, "flee_dir": -1},
                 {"type": "deer", "y": 350, "x": -120, "flee_dir": -1},
+            ],
+            "traffic": [
+                {"type": "oncoming", "y": 350, "speed": 6.5},
             ],
         },
         "target_speed": 7.5,
