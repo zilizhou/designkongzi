@@ -635,9 +635,10 @@ function Chariot({ g }: { g: YuRefs }) {
     const cw = carWorld(g);
     const speed = g.run.car.speed;
     el.position.set(cw.x, 0, cw.z);
-    // 车头朝 -z；弯道斜率 + 横移倾斜
+    // 车头朝 -z；朝向 = 弯道切线 + 横向速度分量（rotation.y 取负：三维里 rotation.y 正 = 朝 -x）
+    const velYaw = cw.yaw + Math.atan2(g.run.car.vx, Math.max(2, speed));
     const latLean = g.input.left ? 0.06 : g.input.right ? -0.06 : 0;
-    el.rotation.y = cw.yaw + (g.input.left ? 0.1 : g.input.right ? -0.1 : 0);
+    el.rotation.y = -velYaw + (g.input.left ? 0.06 : g.input.right ? -0.06 : 0);
     el.rotation.z = latLean;
 
     const t = state.clock.elapsedTime;

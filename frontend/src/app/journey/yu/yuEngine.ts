@@ -5,9 +5,9 @@
  *   events     = beat_hit / junbiao_pass / li / pedestrian_yield / hit_pedestrian
  *                / chase / hard_brake / overspeed
  *
- * 物理常数与旧 2D 版完全一致（评分口径不变）：
+ * 物理常数（后端评分只看速度统计与事件，不看 x，横向手感可调）：
  *   加速 8 m/s² · 刹车 18 m/s² · 自然减速 1.2 m/s² · 极速 14 m/s
- *   横移 20 m/s · 车道半宽 13.5 m
+ *   横移极速 20 m/s（vx 平滑加减速）· 车道半宽 8 m（与视觉路面一致）
  */
 
 import type {
@@ -23,7 +23,9 @@ export const PHYS = {
   FRICTION: 1.2,
   MAX_SPEED: 14,
   LAT_SPEED: 20,
-  ROAD_HALF: 13.5, // 车道中心向左右可偏的最大值（米）
+  LAT_ACC: 34,   // 横向加速度（转向平滑）
+  LAT_DAMP: 5.5, // 松手横向阻尼（/s）
+  ROAD_HALF: 8,  // 车道中心向左右可偏的最大值（米，与视觉路半宽 9 对齐）
   RUT_ZONE: 1.1,   // 循轨范围：|x| 在此内视为双轮入辙（辙距 ±0.75）
   RUT_GUIDE: 1.4,  // 循轨导向：松手时辙将车向中线带回（/s）
   OFFRUT_DRAG: 0.9, // 出辙颠簸阻力（m/s²）
@@ -39,7 +41,7 @@ export interface YuInput {
 }
 
 export interface YuRunState {
-  car: { x: number; y: number; speed: number };
+  car: { x: number; y: number; speed: number; vx: number };
   trajectory: YuTrajectoryPoint[];
   events: YuEvent[];
   elapsedMs: number;
@@ -57,7 +59,7 @@ export interface YuRunState {
 
 export function createRunState(): YuRunState {
   return {
-    car: { x: 0, y: 0, speed: 0 },
+    car: { x: 0, y: 0, speed: 0, vx: 0 },
     trajectory: [],
     events: [],
     elapsedMs: 0,
@@ -137,14 +139,18 @@ export function stepRun(
     }
   }
 
-  // ── 横向（x = 相对车道中心，米） ──
-  if (input.left) car.x -= PHYS.LAT_SPEED * dt;
-  if (input.right) car.x += PHYS.LAT_SPEED * dt;
+  // ── 横向（x = 相对车道中心，米；vx 平滑加减速，转向不生硬） ──
+  if (input.left) car.vx -= PHYS.LAT_ACC * dt;
+  else if (input.right) car.vx += PHYS.LAT_ACC * dt;
+  else car.vx -= car.vx * Math.min(1, PHYS.LAT_DAMP * dt);
+  car.vx = Math.max(-PHYS.LAT_SPEED, Math.min(PHYS.LAT_SPEED, car.vx));
+  car.x += car.vx * dt;
   // 循轨导向：不打方向且在辙区时，车辙将车向中线带回（行于轨则稳）
   if (!input.left && !input.right && Math.abs(car.x) <= PHYS.RUT_ZONE && car.speed > 0.5) {
     car.x -= car.x * Math.min(1, PHYS.RUT_GUIDE * dt);
   }
-  car.x = Math.max(-PHYS.ROAD_HALF, Math.min(PHYS.ROAD_HALF, car.x));
+  if (car.x > PHYS.ROAD_HALF) { car.x = PHYS.ROAD_HALF; car.vx = Math.min(0, car.vx); }
+  if (car.x < -PHYS.ROAD_HALF) { car.x = -PHYS.ROAD_HALF; car.vx = Math.max(0, car.vx); }
 
   // 出辙：颠簸阻力 + 出辙程度（0..1，供车身抖动与音效）
   rs.rutOff = Math.max(0, Math.min(1, (Math.abs(car.x) - PHYS.RUT_ZONE) / 3));
