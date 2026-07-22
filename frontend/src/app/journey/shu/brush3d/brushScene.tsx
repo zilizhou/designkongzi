@@ -26,7 +26,7 @@ export interface BrushRefs {
   penWorld: THREE.Vector3;
   penActive: boolean;
   penDown: boolean;
-  onPen: MutableRefObject<(type: PenEvent, x: number, y: number, speed: number) => void>;
+  onPen: MutableRefObject<(type: PenEvent, x: number, y: number, speed: number, pressure: number) => void>;
 }
 
 export function createBrushRefs(): BrushRefs {
@@ -58,7 +58,7 @@ export function BrushScene({ g }: { g: BrushRefs }) {
   const camLook = useRef(new THREE.Vector3(0, 0.85, -1.7));
 
   useFrame((state, dtRaw) => {
-    const dt = Math.min(0.05, dtRaw);
+    const dt = Math.min(0.05, Math.max(0, dtRaw)); // 防负 dt
     // 相机：固定书案视角 + 极轻微跟随笔锋（呼吸感）
     camPos.current.x += (g.penWorld.x * 0.08 - camPos.current.x) * Math.min(1, dt * 2);
     camPos.current.y = 4.35 + Math.sin(state.clock.elapsedTime * 0.8) * 0.04;
@@ -364,6 +364,12 @@ function Paper({ g }: { g: BrushRefs }) {
     return Math.hypot(x - lp.x, y - lp.y) / dt;
   };
 
+  /** 真实压感（压感笔/触控 0~1 变化；鼠标按住恒 0.5） */
+  const pressureOf = (e: ThreeEvent<PointerEvent>) => {
+    const p = (e.nativeEvent as PointerEvent).pressure;
+    return typeof p === "number" ? p : 0.5;
+  };
+
   if (!tex) return null;
   return (
     <mesh
@@ -378,27 +384,27 @@ function Paper({ g }: { g: BrushRefs }) {
         g.penActive = true;
         g.penWorld.copy(e.point);
         lastPt.current = { x: p.x, y: p.y, t: performance.now() };
-        g.onPen.current("down", p.x, p.y, 0);
+        g.onPen.current("down", p.x, p.y, 0, pressureOf(e));
       }}
       onPointerMove={(e) => {
         const p = toCanvas(e);
         if (!p) return;
         g.penActive = true;
         g.penWorld.copy(e.point);
-        if (g.penDown) g.onPen.current("move", p.x, p.y, speedOf(p.x, p.y));
+        if (g.penDown) g.onPen.current("move", p.x, p.y, speedOf(p.x, p.y), pressureOf(e));
       }}
-      onPointerUp={() => {
+      onPointerUp={(e) => {
         if (!g.penDown) return;
         g.penDown = false;
         lastPt.current = null;
-        g.onPen.current("up", 0, 0, 0);
+        g.onPen.current("up", 0, 0, 0, pressureOf(e));
       }}
       onPointerLeave={() => {
         g.penActive = false;
         if (g.penDown) {
           g.penDown = false;
           lastPt.current = null;
-          g.onPen.current("up", 0, 0, 0);
+          g.onPen.current("up", 0, 0, 0, 0.5);
         }
       }}
     >
@@ -408,16 +414,23 @@ function Paper({ g }: { g: BrushRefs }) {
   );
 }
 
-// ── 毛笔（竹杆 + 锥形笔头，悬浮跟随指针） ──
+// ── 毛笔（竹杆 + 锥形笔头，悬浮跟随指针；按压下压、笔头压扁） ──
 function Brush({ g }: { g: BrushRefs }) {
   const grp = useRef<THREE.Group>(null);
+  const tip = useRef<THREE.Mesh>(null);
+  const pressSm = useRef(0); // 平滑按压（与引擎 pressF 同步）
   const pos = useMemo(() => new THREE.Vector3(1.6, PAPER.y + 1.6, 0.4), []);
   useFrame((state, dtRaw) => {
     const el = grp.current;
     if (!el) return;
-    const dt = Math.min(0.05, dtRaw);
-    // 目标：指针点上方；无指针时搁在砚台旁待命
-    const hoverH = g.penDown ? 0.34 : 0.95;
+    const dt = Math.min(0.05, Math.max(0, dtRaw)); // 防负 dt
+    // 按压：落笔时读引擎 pressF（0=提 1=按），提笔归零
+    const st = g.engine;
+    const press = g.penDown && st ? st.pressF : 0;
+    pressSm.current += (press - pressSm.current) * Math.min(1, dt * 10);
+    const pf = pressSm.current;
+    // 目标：指针点上方；无指针时搁在砚台旁待命。按得越深笔越低
+    const hoverH = g.penDown ? 0.44 - 0.26 * pf : 0.95;
     const tx = g.penActive ? g.penWorld.x : 1.6;
     const tz = g.penActive ? g.penWorld.z : 0.4;
     pos.x += (tx - pos.x) * Math.min(1, dt * 9);
@@ -425,9 +438,15 @@ function Brush({ g }: { g: BrushRefs }) {
     const bob = g.penDown ? 0 : Math.sin(state.clock.elapsedTime * 2.2) * 0.03;
     pos.y += (PAPER.y + hoverH + bob - pos.y) * Math.min(1, dt * 9);
     el.position.copy(pos);
-    // 落笔压下更直立，提笔略倾
-    const tiltX = g.penDown ? 0.32 : 0.5;
+    // 落笔压下更直立，按压力度越大倾角略大；提笔复原
+    const tiltX = g.penDown ? 0.3 + 0.3 * pf : 0.5;
     el.rotation.x += (tiltX - el.rotation.x) * Math.min(1, dt * 8);
+    // 笔头压扁：按=锥体压短变粗，提=复原收尖
+    if (tip.current) {
+      const ty = 1 - 0.5 * pf;
+      const txz = 1 + 0.3 * pf;
+      tip.current.scale.set(txz, ty, txz);
+    }
   });
   return (
     <group ref={grp} position={[1.6, PAPER.y + 1.6, 0.4]} rotation={[0.5, 0, 0.12]}>
@@ -446,8 +465,8 @@ function Brush({ g }: { g: BrushRefs }) {
         <cylinderGeometry args={[0.06, 0.055, 0.12, 10]} />
         <meshStandardMaterial color="#e8dcc0" />
       </mesh>
-      {/* 笔头（锥形墨尖） */}
-      <mesh position={[0, -0.2, 0]}>
+      {/* 笔头（锥形墨尖，按压压扁） */}
+      <mesh ref={tip} position={[0, -0.2, 0]}>
         <coneGeometry args={[0.062, 0.26, 10]} />
         <meshStandardMaterial color="#2a2118" />
       </mesh>

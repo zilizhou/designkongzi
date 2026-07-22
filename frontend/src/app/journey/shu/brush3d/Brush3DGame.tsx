@@ -49,7 +49,10 @@ interface Shu3dDebugHook {
   paintGuide: (n?: number) => void;
   scribble: () => void;
   clear: () => void;
-  state: () => { strokes: number; durationMs: number; recall: number; precision: number; score: number };
+  state: () => {
+    strokes: number; durationMs: number; recall: number; precision: number; score: number;
+    segs?: number; dots?: number; penDown?: boolean; pressF?: number; realPressure?: boolean;
+  };
   submit: () => void;
 }
 declare global {
@@ -94,14 +97,14 @@ export default function Brush3DGame() {
   }, []);
 
   // ── 笔桥（场景 pointer → 引擎 + 音效）：每次渲染直接赋值 ──
-  g.onPen.current = (type, x, y, speed) => {
+  g.onPen.current = (type, x, y, speed, pressure) => {
     if (phaseRef.current !== "writing" || !g.engine) return;
     if (type === "down") {
-      penDown(g.engine, x, y);
+      penDown(g.engine, x, y, pressure);
       sfx.dropTick();
       sfx.setStroking(true, 0.3);
     } else if (type === "move") {
-      penMove(g.engine, x, y, speed);
+      penMove(g.engine, x, y, speed, pressure);
       sfx.setStroking(true, Math.min(1, speed / 1600));
     } else {
       penUp(g.engine);
@@ -173,6 +176,11 @@ export default function Brush3DGame() {
         return {
           strokes: g.engine.strokes,
           durationMs: g.engine.firstInkAt === null ? 0 : Date.now() - g.engine.firstInkAt,
+          segs: g.engine.segments.length,
+          dots: g.engine.dots.length,
+          penDown: g.engine.penDown,
+          pressF: Math.round(g.engine.pressF * 100) / 100,
+          realPressure: g.engine.realPressure,
           ...sc,
         };
       },
@@ -287,7 +295,7 @@ export default function Brush3DGame() {
             <div className="pointer-events-none absolute left-1/2 top-16 w-[min(92%,430px)] -translate-x-1/2 rounded-2xl bg-black/60 px-5 py-4 text-center text-white backdrop-blur">
               <div className="font-serif text-lg" style={{ color: "#f0d9a0" }}>写「{current.char}」字</div>
               <div className="mt-1 text-xs leading-relaxed opacity-85">
-                按住纸面拖动即落墨：慢则粗、快则细，提按自如。沿浅灰底稿摹写，写满写稳。
+                按住纸面拖动即落墨：慢=按笔（粗而浓）、快=提笔（细而枯），压感笔可真实提按。沿浅灰底稿摹写，写满写稳。
               </div>
               <div className="mt-1 text-[11px] opacity-70">松开为一段 · 至少 3 段、满 3 秒可交卷</div>
             </div>
@@ -322,7 +330,7 @@ export default function Brush3DGame() {
           {phase === "writing" && (
             <div className="absolute inset-x-0 bottom-3 flex items-end justify-between px-3 sm:px-6">
               <div className="pointer-events-none hidden rounded-full bg-black/45 px-3 py-1 text-[10px] text-white backdrop-blur sm:block">
-                按住拖动 = 运笔 · 慢粗快细
+                按住拖动 = 运笔 · 慢=按 快=提 · 压感笔真实提按
               </div>
               <div className="flex gap-2">
                 <button
