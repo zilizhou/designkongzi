@@ -109,8 +109,8 @@ export default function ShuJourneyPage() {
         </div>
       </section>
 
-      {/* 两个游戏入口 */}
-      <section className="grid gap-3 sm:grid-cols-2">
+      {/* 三个游戏入口 */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/journey/shu/assemble"
           className="group rounded-2xl border-2 border-accent bg-accent-soft p-5 transition-all hover:shadow-md"
@@ -143,6 +143,23 @@ export default function ShuJourneyPage() {
               </p>
             </div>
             <div className="font-serif text-5xl text-rose-900 opacity-50 group-hover:opacity-90">书</div>
+          </div>
+        </Link>
+        <Link
+          href="/journey/shu/brush3d"
+          className="group rounded-2xl border-2 border-amber-600 bg-amber-50 p-5 transition-all hover:shadow-md"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-xs tracking-widest text-amber-700">游戏 · 3</div>
+              <div className="mt-1 font-serif text-xl text-amber-900">竹简挥毫 →</div>
+              <p className="mt-2 text-xs text-muted">
+                在书案上执笔写大字。提按转折，墨入竹简。
+                <br/>
+                3D 书斋描红，交卷定品第。
+              </p>
+            </div>
+            <div className="font-serif text-5xl text-amber-900 opacity-50 group-hover:opacity-90">筆</div>
           </div>
         </Link>
       </section>
