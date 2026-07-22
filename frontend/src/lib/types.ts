@@ -571,6 +571,7 @@ export interface YueScenarioBrief {
   setting: string;
   hint: string;
   answered: boolean;
+  done_today?: boolean;
 }
 export interface YueScenarioFull extends YueScenarioBrief {
   ideal_distribution: Record<string, number>;
