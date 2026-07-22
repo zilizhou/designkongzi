@@ -155,6 +155,10 @@ export default function YueGame() {
     g.engine = createEngine(s);
     g.arc = null;
     g.ripples = [];
+    // 关键：Canvas 按 key 重挂载后场景时钟从 0 重计，
+    // 必须重置上一局的击钟/木槌时间戳，否则负 dt 让摆动公式算出天文数字 → 编钟乱晃
+    for (const n of NOTES) g.bellT[n] = -10;
+    g.hammerT = -10;
     g.running = true;
     setCurrent(s);
     setResult(null);

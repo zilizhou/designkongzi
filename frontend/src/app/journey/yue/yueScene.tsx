@@ -400,9 +400,9 @@ function Bell({ g, note, idx }: { g: YueRefs; note: YueNote; idx: number }) {
   useFrame(() => {
     const el = grp.current;
     if (!el) return;
-    // 击后悬摆（绕前后轴小角衰减振荡）
+    // 击后悬摆（绕前后轴小角衰减振荡）；dt 为负（跨局时间戳残留）时不动
     const dt = g.now - g.bellT[note];
-    el.rotation.x = dt < 2.5 ? 0.1 * Math.exp(-2.6 * dt) * Math.sin(11 * dt) : 0;
+    el.rotation.x = dt >= 0 && dt < 2.5 ? 0.1 * Math.exp(-2.6 * dt) * Math.sin(11 * dt) : 0;
   });
 
   return (
@@ -467,7 +467,7 @@ function Hammer({ g }: { g: YueRefs }) {
     // 挥槌：击后 0.28s 一个来回
     if (swing.current) {
       const d = g.now - g.hammerT;
-      swing.current.rotation.x = d < 0.6 ? -Math.sin(Math.min(1, d / 0.28) * Math.PI) * 0.85 : 0;
+      swing.current.rotation.x = d >= 0 && d < 0.6 ? -Math.sin(Math.min(1, d / 0.28) * Math.PI) * 0.85 : 0;
     }
   });
   return (
@@ -493,8 +493,11 @@ function Ripples({ g }: { g: YueRefs }) {
   const refs = useRef<(THREE.Mesh | null)[]>([]);
   const matRefs = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   useFrame(() => {
-    // 清理过期
-    while (g.ripples.length > 0 && g.now - g.ripples[0].t0 > 1.1) g.ripples.shift();
+    // 清理过期（含跨局残留：时钟重计后 t0 比 now 大，d 为负也清掉）
+    while (g.ripples.length > 0) {
+      const dd = g.now - g.ripples[0].t0;
+      if (dd > 1.1 || dd < 0) g.ripples.shift(); else break;
+    }
     for (let i = 0; i < 8; i++) {
       const m = refs.current[i];
       const mat = matRefs.current[i];
@@ -504,7 +507,7 @@ function Ripples({ g }: { g: YueRefs }) {
       const d = g.now - r.t0;
       const p = d / 1.0; // 1s 扩散
       const c = bellCenter(r.idx);
-      m.visible = p <= 1;
+      m.visible = p >= 0 && p <= 1;
       m.position.set(c.x, c.y + 0.3, c.z + 0.42);
       const sc = 0.4 + p * 1.7;
       m.scale.set(sc, sc, 1);
@@ -537,7 +540,8 @@ function ShengArcView({ g }: { g: YueRefs }) {
     const mat = matRef.current;
     if (!m || !mat) return;
     const arc = g.arc;
-    if (!arc || g.now - arc.t0 > 1.6) {
+    const arcAge = arc ? g.now - arc.t0 : -1;
+    if (!arc || arcAge > 1.6 || arcAge < 0) {
       m.visible = false;
       return;
     }
