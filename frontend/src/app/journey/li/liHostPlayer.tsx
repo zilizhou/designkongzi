@@ -6,6 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { LowPolyPerson, PAL, WORLD } from "./liHostVisuals";
+import * as sfx from "./liHostAudio";
 
 export const PLAYER_START = new THREE.Vector3(0, 0, 1.2);
 
@@ -70,9 +71,11 @@ export function PlayerAvatar({
   const group = useRef<THREE.Group>(null);
   const walkRef = useRef(0);
   const moving = useRef(false);
+  const stepAcc = useRef(0); // 步行节奏钩子（石板脚步声）
 
-  useFrame((_, dt) => {
+  useFrame((_, dtRaw) => {
     if (!group.current) return;
+    const dt = Math.min(0.05, Math.max(0, dtRaw)); // 防负 dt
     const speed = enabled ? 3.4 : 0;
     const ix = input.current.x;
     const iz = input.current.z;
@@ -86,6 +89,14 @@ export function PlayerAvatar({
       group.current.position.z = THREE.MathUtils.clamp(group.current.position.z, WORLD.minZ, WORLD.maxZ);
       const targetYaw = Math.atan2(ix, iz);
       group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, targetYaw, 0.14);
+      // 石板脚步：每行进 0.62 个世界单位一步
+      stepAcc.current += speed * dt;
+      if (stepAcc.current >= 0.62) {
+        stepAcc.current = 0;
+        sfx.step();
+      }
+    } else {
+      stepAcc.current = 0.3; // 再起第一步更快出声
     }
 
     onMove(group.current.position);

@@ -21,10 +21,12 @@ import {
   checkGreetOrder,
   clamp,
   detailToScores,
+  geomTotal,
   scoreBow,
   scoreEventTiming,
   scoreSeats,
 } from "./liHostLogic";
+import * as sfx from "./liHostAudio";
 import {
   dist2d,
   FollowCamera,
@@ -44,6 +46,17 @@ import {
 } from "./liHostVisuals";
 
 type Phase = "intro" | "greet" | "bow" | "seat" | "banquet" | "done";
+
+declare global {
+  interface Window {
+    __li3d?: {
+      pos: () => [number, number, number];
+      phase: () => string;
+      atmosphere: () => number;
+      interact: () => void;
+    };
+  }
+}
 type GuestState = LiHostGuestCfg & {
   greeted: boolean;
   seatIdx: number | null;
@@ -107,6 +120,20 @@ export default function Li3DGame({
   useEffect(() => {
     setIsTouch(typeof window !== "undefined" && (window.matchMedia?.("(pointer: coarse)").matches ?? false));
   }, []);
+
+  // 环境声生命周期：离局/卸载时停掉（入院时 startAmbience）
+  useEffect(() => () => sfx.stopAll(), []);
+
+  // 调试钩子（CDP 测试用）：每渲染重赋值，始终读到最新闭包
+  useEffect(() => {
+    window.__li3d = {
+      pos: () => playerPos.current.toArray() as [number, number, number],
+      phase: () => phase,
+      atmosphere: () => atmosphere,
+      interact: () => tryInteract(),
+    };
+    return () => { delete window.__li3d; };
+  });
 
   useEffect(() => {
     const sync = () => {
@@ -194,9 +221,11 @@ export default function Li3DGame({
     if (ok) {
       setOrderHits((h) => h + 1);
       showToast("先后得宜");
+      sfx.chimeGood();
     } else {
       showToast("失了先后");
       setAtmosphere((a) => clamp(a - 8, 20, 100));
+      sfx.chimeBad();
     }
     setFocusId(id);
     setPhase("bow");
@@ -252,6 +281,9 @@ export default function Li3DGame({
     setCharging(false);
     const guest = scenario.guests.find((g) => g.id === focusId)!;
     const { score, verdict } = scoreBow(guest, bowDepth, scenario);
+    sfx.bowQing();
+    if (score >= 70) sfx.riteGood();
+    else if (score < 50) sfx.riteBad();
     setBows((b) => [...b, { guest: guest.name, verdict, score }]);
     setGuests((gs) =>
       gs.map((g) =>
