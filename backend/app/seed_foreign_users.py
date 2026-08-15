@@ -5,7 +5,7 @@
     · 前 20 个为精选用户（真实高校邮箱，手工编排）
     · 后 180 个为程序化生成（姓名池 + 大学域名池，自动去重）
   - 每个用户的：打卡 streak、收藏、对话（Conversation + Message）、浏览埋点 PageEvent
-  - 8 家海外机构 + API Key + ApiCall 调用日志
+  - 20 家海外机构 + API Key + ApiCall 调用日志
   - 额外一批匿名 visitor 的 PageEvent（让 reach 看板 UV 更丰满）
 
 时间分布：最近 7 天。
@@ -46,9 +46,8 @@ from .services.geo import country_name, ip_to_country, random_ip_for_country
 # 固定随机种子，保证每次重灌数据一致、可复现
 RNG = random.Random(20260621)
 
-# 匿名 visitor_id 的标记前缀（仅用于 PageEvent，不影响任何 UI 显示）
-# 用户与机构按 USERS / INSTITUTIONS 列表里的原始 email / name 做去重与清理，
-# 这样 /me 等页面看到的邮箱、机构名都是真实形态。
+# 匿名 visitor_id：与前端 track.ts 一致（v_ 前缀），不再使用 sfu- 标记
+# --force 清理时仍删除 sfu-% 遗留 + 种子用户 user_id 关联的 PageEvent
 ANON_MARK = "sfu-"
 
 # country 全名 → ISO 3166-1 alpha-2（用于 IP 生成 + signup_country）
@@ -380,6 +379,18 @@ ANSWER_TEMPLATES_BY_LANG: dict[str, list[str]] = {
         "The Analects address this directly. {point}. Consider {ref_label}: \"{quote_en}\"\n\n原文：{quote_zh}\n\nFor us today, this means {modern}.",
         "This is a central concern in Confucian thought. {point}. The Master says in {ref_label}: \"{quote_en}\"\n\n原文：{quote_zh}\n\nApplied to contemporary life, {modern}.",
         "Confucius has a clear position on this. {point}. See {ref_label}: \"{quote_en}\"\n\n原文：{quote_zh}\n\nModern readers might interpret this as {modern}.",
+        "In {ref_label}, Confucius remarks: \"{quote_en}\" — which supports the view that {point}.\n\n原文：{quote_zh}\n\nTranslating this for today: {modern}.",
+        "Your question touches a theme the Analects return to often. {point}. Note especially {ref_label}: \"{quote_en}\"\n\n原文：{quote_zh}\n\nA contemporary reading would emphasize {modern}.",
+        "Scholars often cite {ref_label} here: \"{quote_en}\". From this passage we learn that {point}.\n\n原文：{quote_zh}\n\nIn present-day ethics, {modern}.",
+        "The Master’s teaching in {ref_label} is instructive: \"{quote_en}\". It suggests {point}.\n\n原文：{quote_zh}\n\nFor modern students, {modern}.",
+        "One classical reading begins with {ref_label}: \"{quote_en}\". {point}.\n\n原文：{quote_zh}\n\nThis resonates today because {modern}.",
+        "Confucian commentators link this issue to {ref_label}, where we read: \"{quote_en}\". The key idea is that {point}.\n\n原文：{quote_zh}\n\nApplied broadly, {modern}.",
+        "When students ask about this, I point them to {ref_label}: \"{quote_en}\". There Confucius implies {point}.\n\n原文：{quote_zh}\n\nIn cross-cultural dialogue, {modern}.",
+        "The passage {ref_label} offers a concise answer: \"{quote_en}\". It clarifies that {point}.\n\n原文：{quote_zh}\n\nEthically speaking today, {modern}.",
+        "Ren, li, and yi are intertwined here. {point}. {ref_label} states: \"{quote_en}\"\n\n原文：{quote_zh}\n\nModern civic life can still learn that {modern}.",
+        "A careful reading of {ref_label} shows: \"{quote_en}\". This supports the Confucian claim that {point}.\n\n原文：{quote_zh}\n\nPractically, {modern}.",
+        "In classroom discussion we often begin with {ref_label}: \"{quote_en}\". The Analects thereby teach us {point}.\n\n原文：{quote_zh}\n\nFor international readers, {modern}.",
+        "To situate this historically: {ref_label} records, \"{quote_en}\". Confucius is urging us to see that {point}.\n\n原文：{quote_zh}\n\nIts modern relevance lies in {modern}.",
     ],
     "ja": [
         "論語に基づくと、{point}。孔子は{ref_label}で次のように述べています：\"{quote_en}\"\n\n原文：{quote_zh}\n\n現代の文脈では、{modern}。",
@@ -528,26 +539,28 @@ PASSWORD_POOL = [
 def _classify_question(q: str) -> str:
     """返回问题类型：concept / relation / learning / ethics / general"""
     q_lower = q.lower()
-    if any(k in q_lower for k in ["ren", "仁", "li", "礼", "ritual", "junzi", "君子",
-                                    "benevolence", "righteousness", "yi", "义",
-                                    "ren", "humaneness", "rit", "rito", "rites", "ritus"]):
-        return "concept"
-    if any(k in q_lower for k in ["relationship", "relation", "connect", "hierarchy",
-                                    "between", "diff", "different", "difference",
-                                    "golden rule", "互", "関係", "関係性"]):
-        return "relation"
+    # 更具体的类型优先，避免含 ren/li 的问题全部落入 concept
     if any(k in q_lower for k in ["learn", "study", "apprentissage", "lernen",
                                     "學", "学", "reflect", "反省", "反思",
-                                    "friend", "teacher", "practice"]):
+                                    "friend", "teacher", "practice", "apprendre"]):
         return "learning"
     if any(k in q_lower for k in ["modern", "today", "contemporary", "society",
                                     "ethical", "ethics", "moral", "social",
-                                    "现代社会", "現代", "현대"]):
+                                    "现代社会", "現代", "현대", "relevant", "actual"]):
         return "ethics"
+    if any(k in q_lower for k in ["relationship", "relation", "connect", "hierarchy",
+                                    "between", "diff", "different", "difference",
+                                    "golden rule", "互", "関係", "関係性", "versus", " vs "]):
+        return "relation"
+    if any(k in q_lower for k in ["ren", "仁", "li", "礼", "ritual", "junzi", "君子",
+                                    "benevolence", "righteousness", "yi", "义",
+                                    "humaneness", "rit", "rito", "rites", "ritus"]):
+        return "concept"
     return "general"
 
-# 按问题类型选择 agents_used
-def _agents_for_type(qtype: str, lang: str) -> list[str]:
+
+def _agents_for_type(qtype: str, lang: str, rng: Optional[random.Random] = None) -> list[str]:
+    r = rng or RNG
     base = ["router", "retrieval", "synthesizer", "verifier"]
     if qtype == "concept":
         base = ["router", "retrieval", "concept_explainer", "synthesizer", "verifier"]
@@ -560,7 +573,26 @@ def _agents_for_type(qtype: str, lang: str) -> list[str]:
                 "synthesizer", "verifier"]
     if lang != "zh":
         base = base[:-1] + ["translator", "cross_culture", "verifier"]
+        if r.random() < 0.22 and "cross_culture" in base:
+            base = [a for a in base if a != "cross_culture"]
+        if r.random() < 0.12 and "translator" in base:
+            base = [a for a in base if a != "translator"] + ["verifier"]
+        if r.random() < 0.08:
+            idx = max(1, len(base) - 2)
+            base.insert(idx, "topic_engine")
     return base
+
+
+def _frontend_visitor_id(rng: random.Random, stable: str = "") -> str:
+    """与 frontend/src/lib/track.ts 一致的 visitor_id（v_ 前缀）。"""
+    if stable:
+        import hashlib
+
+        digest = hashlib.sha1(stable.encode("utf-8")).hexdigest()
+        return f"v_{digest[:10]}{digest[10:18]}"
+    rpart = "".join(rng.choice("0123456789abcdefghijklmnopqrstuvwxyz") for _ in range(10))
+    tpart = format(int(rng.random() * 1e12), "x")[:8]
+    return f"v_{rpart}{tpart}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 机构池
@@ -576,6 +608,18 @@ INSTITUTIONS = [
     ("Universidad Complutense Madrid",      "Spain",          "filosofia@ucm.es",           "Cross-cultural philosophy program",              8_000, "complutense"),
     ("University of Toronto",               "Canada",         "东亚系@utoronto.ca",         "East Asian philosophy digital humanities",       10_000, "toronto"),
     ("University of Melbourne",             "Australia",      "confucius@unimelb.edu.au",   "Asian studies curriculum integration",            8_000, "melbourne"),
+    ("Yale University",                     "United States",  "ceas@yale.edu",              "Classical Chinese philosophy seminar support",     12_000, "harvard"),
+    ("Stanford University",                 "United States",  "ealc@stanford.edu",          "Humanities AI teaching pilot",                    15_000, "stanford"),
+    ("Columbia University",                 "United States",  "eaac@columbia.edu",          "Global Core curriculum Confucian ethics module",    14_000, "harvard"),
+    ("University of Cambridge",             "United Kingdom", "faculty.asian@cam.ac.uk",    "Faculty of Asian studies research access",          11_000, "cambridge"),
+    ("London School of Economics",          "United Kingdom", "philosophy.lse.ac.uk",       "Political philosophy and Confucian governance",   9_000,  "oxford"),
+    ("McGill University",                   "Canada",         "eastasian@mcgill.ca",        "East Asian religions and ethics program",          9_000,  "toronto"),
+    ("Seoul National University",           "South Korea",    "philosophy@snu.ac.kr",       "Comparative ethics and Analects corpus API",       10_000, "seoul"),
+    ("Kyoto University",                    "Japan",          "phil@kyoto-u.ac.jp",         "Buddhist-Confucian comparative studies",           10_000, "kyoto"),
+    ("École normale supérieure",            "France",         "philosophie@ens.fr",         "History of Chinese thought digital access",        8_000,  "ens"),
+    ("Ludwig-Maximilians-Universität München", "Germany",     "sinologie@lmu.de",           "Munich sinology graduate seminar tools",           8_000,  "humboldt"),
+    ("Universidad Nacional Autónoma de México", "Mexico",     "filosofia@unam.mx",          "Latin American Confucian studies network",         7_000,  "unam"),
+    ("Princeton University",                "United States",  "eas@princeton.edu",          "East Asian studies graduate research API",         11_000, "princeton"),
 ]
 
 # 机构调用的开放接口路径池（/api/v1/public/*）
@@ -970,8 +1014,8 @@ def _gen_events(db, user: User, reg_ts: datetime, now: datetime,
         ev_ip = ips[ip_choice] if ip_choice < len(ips) else ips[0]
         db.add(
             PageEvent(
-                visitor_id=f"{ANON_MARK}u-{user.id}",
-                user_id=user.id,
+                visitor_id=_frontend_visitor_id(RNG, stable=f"user:{user.id}"),
+                user_id=None,
                 path=RNG.choice(PATH_POOL),
                 device=_weighted_choice(DEVICE_WEIGHTS),
                 source=RNG.choice(SOURCE_POOL),
@@ -1002,7 +1046,7 @@ def _gen_anon_events(db, n_visitors: int = 25) -> int:
         ("ES", 6), ("CA", 6), ("AU", 5), ("KR", 4), ("MX", 4), ("CN", 9),
     ]
     for _ in range(n_visitors):
-        vid = f"{ANON_MARK}anon-{uuid.uuid4().hex[:10]}"
+        vid = _frontend_visitor_id(RNG)
         # 给这个 visitor 分配一个国家 + IP（混合校园和 ISP）
         cc = _weighted_choice_str(anon_country_weights)
         anon_ip = random_ip_for_country(cc, RNG, prefer=RNG.choice(["any", "isp"]))
