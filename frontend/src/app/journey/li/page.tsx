@@ -376,7 +376,13 @@ function ResultView({
         </section>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Link
+          href="/journey/li/recap"
+          className="flex-1 rounded-lg bg-accent py-3 text-center text-sm font-medium text-white"
+        >
+          查看规则出处与复盘
+        </Link>
         <button
           type="button"
           onClick={onShare}
@@ -384,7 +390,7 @@ function ResultView({
         >
           分享成绩
         </button>
-        <button type="button" onClick={onBack} className="flex-1 rounded-lg bg-accent py-3 text-sm font-medium text-white">
+        <button type="button" onClick={onBack} className="flex-1 rounded-lg border border-line py-3 text-sm text-muted">
           回到修行场
         </button>
       </div>

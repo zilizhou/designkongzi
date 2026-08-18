@@ -1,136 +1,89 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getCorpusStats, getPassage } from "@/lib/api";
 import { t, useLang } from "@/lib/i18n";
-import type { CorpusStats, Passage } from "@/lib/types";
-
-const QUOTE_REF = "lunyu.yanyuan.12.2";
+import { DEMO_QUESTION } from "@/components/qiewen/tracks";
 
 export default function Home() {
   const [lang] = useLang();
-  const [quote, setQuote] = useState<Passage | null>(null);
-  const [stats, setStats] = useState<CorpusStats | null>(null);
-  const [err, setErr] = useState(false);
-
-  useEffect(() => {
-    getPassage(QUOTE_REF, lang).then(setQuote).catch(() => setErr(true));
-  }, [lang]);
-
-  useEffect(() => {
-    getCorpusStats().then(setStats).catch(() => {});
-  }, []);
-
-  const translation = quote?.translations.find((tr) => tr.lang === lang)
-    ?? quote?.translations.find((tr) => tr.lang === "en");
 
   return (
-    <div className="space-y-6">
-      {/* 今日金句 */}
-      <section className="rounded-2xl border border-line bg-accent-soft p-6 shadow-sm">
-        <div className="mb-2 text-xs tracking-widest text-accent">
-          {t("home.quote", lang)}
-        </div>
-        {err ? (
-          <p className="text-sm text-faint">
-            后端未连接。请先启动后端 uvicorn (8000)。
+    <div className="qx-bleed relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-y-0 left-[7%] hidden w-px bg-line/70 lg:block" />
+      <div className="mx-auto grid min-h-[calc(100dvh-3.5rem)] max-w-6xl grid-cols-1 px-5 py-10 md:px-8 lg:grid-cols-[4.5rem_1fr] lg:py-16">
+        <aside className="hidden lg:flex">
+          <p className="font-serif text-[15px] leading-[2.4] tracking-[0.55em] text-faint [writing-mode:vertical-rl]">
+            切问而近思 · 论语 · 子张
           </p>
-        ) : quote ? (
-          <>
-            <p className="font-serif text-2xl leading-relaxed tracking-wide text-accent-ink">
-              {quote.original_text}
-            </p>
-            {translation && translation.lang !== "zh" && (
-              <p className="mt-3 font-serif text-sm italic text-muted">
-                {translation.text}
-              </p>
-            )}
-            <span className="mt-4 inline-block rounded-full bg-surface/50 px-3 py-1 text-xs text-accent">
-              {quote.ref_label}
-            </span>
-          </>
-        ) : (
-          <div className="space-y-3">
-            <div className="skeleton h-7 w-3/4" />
-            <div className="skeleton h-4 w-2/3" />
-            <div className="skeleton h-6 w-28 rounded-full" />
-          </div>
-        )}
-      </section>
+        </aside>
 
-      {/* 语料看板 — 申报书目标①「≥10 万条标注语料」量化展示 */}
-      {stats && (
-        <section className="rounded-2xl border border-line bg-surface p-5">
-          <div className="mb-3 flex flex-wrap items-end gap-x-6 gap-y-1">
-            <div>
-              <div className="font-serif text-3xl font-medium text-fg">
-                {stats.total.toLocaleString()}
-              </div>
-              <div className="text-xs text-faint">{t("corpus.units", lang)}</div>
-            </div>
-            <div className="text-xs text-faint">
-              {t("corpus.target", lang)} {stats.target.toLocaleString()}
-              <span className="mx-1">·</span>
-              {(stats.progress * 100).toFixed(2)}%
-            </div>
-            <div className="ml-auto text-xs text-faint">
-              <span className="font-serif text-lg text-fg">{stats.language_count}</span>{" "}
-              {t("corpus.langs", lang)}
-              <span className="ml-2 text-faint">
-                {stats.languages.map((l) => l.toUpperCase()).join(" · ")}
+        <div className="flex flex-col justify-center">
+          <p className="qx-rise text-[11px] tracking-[0.38em] text-accent">
+            {t("home.values", lang)}
+          </p>
+          <h1 className="qx-rise qx-rise-2 mt-5 font-serif text-[2.6rem] font-medium leading-[1.15] text-fg sm:text-6xl">
+            切问近思
+          </h1>
+          <p className="qx-rise qx-rise-3 mt-5 max-w-xl font-serif text-lg leading-relaxed text-muted sm:text-xl">
+            {t("brand.line", lang)}
+          </p>
+          <p className="qx-rise qx-rise-3 mt-3 max-w-lg font-serif-en text-sm italic text-faint">
+            Not an AI playing Confucius — an AI accountable for every claim.
+          </p>
+
+          <div className="qx-rise qx-rise-4 mt-10 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Link
+              href={`/chat?q=${encodeURIComponent(DEMO_QUESTION)}`}
+              className="group relative overflow-hidden rounded-[1.6rem] border border-line bg-surface p-6 shadow-paper transition hover:-translate-y-0.5 sm:p-8"
+            >
+              <div className="absolute right-5 top-5 font-serif text-5xl text-accent/10">问</div>
+              <div className="text-[11px] tracking-[0.32em] text-accent">切问</div>
+              <div className="mt-3 font-serif text-2xl text-fg">{t("home.door.ask", lang)}</div>
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted">
+                {t("home.door.ask.desc", lang)}
+              </p>
+              <span className="mt-6 inline-flex items-center text-sm text-accent">
+                进入对读
+                <span className="ml-1 transition group-hover:translate-x-0.5">→</span>
               </span>
-            </div>
-          </div>
-          {/* 进度条 */}
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full bg-accent transition-all"
-              style={{ width: `${Math.min(100, stats.progress * 100)}%` }}
-            />
-          </div>
-          {/* 关键明细 */}
-          <div className="mt-3 grid grid-cols-3 gap-2 text-xs sm:grid-cols-4">
-            {Object.entries(stats.breakdown)
-              .slice(0, 8)
-              .map(([k, v]) => (
-                <div key={k} className="rounded-lg bg-surface-2/40 px-2 py-1.5">
-                  <div className="font-serif text-base text-fg">{v}</div>
-                  <div className="text-[10px] text-faint">{k}</div>
-                </div>
-              ))}
-          </div>
-          <div className="mt-3 text-xs text-muted">
-            <Link href="/cases" className="text-accent hover:underline">
-              {stats.breakdown["跨文明对话案例（条）"] ?? 0}{" "}
-              {t("corpus.cases", lang)} →
+            </Link>
+
+            <Link
+              href="/journey/li"
+              className="group relative overflow-hidden rounded-[1.6rem] border border-line bg-accent-soft p-6 transition hover:-translate-y-0.5 sm:p-8"
+            >
+              <div className="absolute right-5 top-5 font-serif text-5xl text-accent/15">习</div>
+              <div className="text-[11px] tracking-[0.32em] text-accent">近思</div>
+              <div className="mt-3 font-serif text-2xl text-accent-ink">
+                {t("home.door.practice", lang)}
+              </div>
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-accent-ink/75">
+                {t("home.door.practice.desc", lang)}
+              </p>
+              <span className="mt-6 inline-flex items-center text-sm text-accent">
+                进入演练
+                <span className="ml-1 transition group-hover:translate-x-0.5">→</span>
+              </span>
             </Link>
           </div>
-        </section>
-      )}
 
-      {/* 入口 */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          { href: "/chat",  title: "home.entry.chat",  desc: "home.entry.chat.desc" },
-          { href: "/read",  title: "home.entry.read",  desc: "home.entry.read.desc" },
-          { href: "/graph", title: "home.entry.graph", desc: "home.entry.graph.desc" },
-        ].map((e) => (
-          <Link
-            key={e.href}
-            href={e.href}
-            className="group rounded-2xl border border-line bg-surface p-6 transition hover:shadow-md"
-          >
-            <div className="font-serif text-xl font-medium text-fg">
-              {t(e.title, lang)}
-            </div>
-            <p className="mt-2 text-sm text-muted">{t(e.desc, lang)}</p>
-            <span className="mt-4 inline-block text-sm text-accent group-hover:underline">
-              {t("home.cta", lang)}
-            </span>
-          </Link>
-        ))}
-      </section>
+          <div className="qx-rise qx-rise-4 mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <span className="text-[11px] tracking-[0.28em] text-faint">{t("home.try", lang)}</span>
+            <Link
+              href={`/chat?q=${encodeURIComponent(DEMO_QUESTION)}`}
+              className="rounded-full border border-line bg-surface/80 px-4 py-2 font-serif text-sm text-fg hover:border-gold-line"
+            >
+              {DEMO_QUESTION}
+            </Link>
+          </div>
+
+          <div className="mt-12 flex flex-wrap gap-x-6 gap-y-2 text-xs text-faint">
+            <Link href="/read" className="hover:text-accent">读经</Link>
+            <Link href="/graph" className="hover:text-accent">图谱</Link>
+            <Link href="/design" className="hover:text-accent">界面稿</Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
